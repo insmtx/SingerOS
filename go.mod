@@ -5,7 +5,10 @@ go 1.24.10
 require (
 	github.com/spf13/cobra v1.10.2
 	github.com/ygpkg/yg-go v1.23.51
+	gorm.io/gorm v1.30.1
 )
+
+replace github.com/insmtx/SingerOS/proto => ./gen/github.com/insmtx/SingerOS/proto
 
 require (
 	github.com/bradfitz/gomemcache v0.0.0-20220106215444-fb4bf637b56d // indirect
@@ -25,6 +28,8 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
@@ -53,5 +58,4 @@ require (
 	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/gorm v1.30.1 // indirect
 )
