@@ -194,6 +194,16 @@ func (p *rabbitmqPublisher) SubscribeWithContext(ctx context.Context, topic stri
 	return nil
 }
 
+// Publish implements the eventbus.Publisher interface
+func (p *rabbitmqPublisher) Publish(ctx context.Context, topic string, event any) error {
+	return p.PublishWithContext(ctx, topic, event)
+}
+
+// Subscribe implements the eventbus.Subscriber interface
+func (p *rabbitmqPublisher) Subscribe(ctx context.Context, topic string, handler func(event any)) error {
+	return p.SubscribeWithContext(ctx, topic, handler)
+}
+
 // Close 关闭RabbitMQ连接并释放资源
 func (p *rabbitmqPublisher) Close() error {
 	p.mu.Lock()

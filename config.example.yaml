@@ -1,0 +1,6 @@
+# SingerOS Configuration
+github:
+  appId: 123456
+  privateKey: "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n"
+  webhookSecret: "your_webhook_secret_here"
+  baseURL: "https://api.github.com"
