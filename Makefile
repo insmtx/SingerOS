@@ -1,21 +1,17 @@
 PROJECT := SingerOS
 REGISTRY ?= registry.yygu.cn/insmtx/
 
-.PHONY: docker-build docker-build-singer docker-build-skill-proxy docker-push docker-release docker-run
-
-docker-build:
-	docker build -t $(REGISTRY)$(PROJECT):latest -f deployments/build/Dockerfile .
+.PHONY: docker-build-singer docker-build-skill-proxy docker-push docker-release docker-run
 
 docker-build-singer:
-	docker build --target singer -t $(REGISTRY)$(PROJECT)-singer:latest -f deployments/build/Dockerfile .
+	docker build -t $(REGISTRY)$(PROJECT)-singer:latest -f deployments/build/Dockerfile.singer .
 
 docker-build-skill-proxy:
-	docker build --target skill-proxy -t $(REGISTRY)$(PROJECT)-skill-proxy:latest -f deployments/build/Dockerfile .
+	docker build -t $(REGISTRY)$(PROJECT)-skill-proxy:latest -f deployments/build/Dockerfile.skill-proxy .
 
 docker-build-all: docker-build-singer docker-build-skill-proxy
 
 docker-push:
-	docker push $(REGISTRY)$(PROJECT):latest
 
 docker-push-singer:
 	docker push $(REGISTRY)$(PROJECT)-singer:latest
@@ -25,13 +21,11 @@ docker-push-skill-proxy:
 
 docker-push-all: docker-push-singer docker-push-skill-proxy
 
-docker-release: docker-build docker-push
+docker-release-singer: docker-build-singer docker-push-singer
+
+docker-release-skill-proxy: docker-build-skill-proxy docker-push-skill-proxy
 
 docker-release-all: docker-build-all docker-push-all
-
-docker-run:
-	-docker rm -f $(PROJECT)-dev
-	docker run -d --name $(PROJECT)-dev -p 8080:8080 $(REGISTRY)$(PROJECT):latest
 
 docker-run-singer:
 	-docker rm -f $(PROJECT)-singer-dev

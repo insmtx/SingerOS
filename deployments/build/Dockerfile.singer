@@ -1,0 +1,42 @@
+ARG BUILDPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
+
+FROM registry.yygu.cn/library/golang:1.24 AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -ldflags="-s -w" -o /build/singer ./backend/cmd/singer/main.go
+
+FROM registry.yygu.cn/library/ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -r -s /bin/false appuser
+
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /build/singer /singer
+
+EXPOSE 8080
+
+USER appuser
+
+ENTRYPOINT ["/singer"]
