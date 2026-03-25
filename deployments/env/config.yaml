@@ -1,0 +1,34 @@
+# SingerOS Development Environment Configuration
+
+server:
+  port: 8080
+  
+database:
+  host: postgresql
+  port: 5432
+  username: singer_user
+  password: singer_password
+  dbname: singer_db
+  sslmode: disable
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  username: singer_user
+  password: singer_password
+
+redis:
+  addr: "redis:6379"
+
+log:
+  level: debug
+  
+github:
+  app_id: ""
+  installation_id: ""
+  private_key: ""
+
+# Skill proxy settings
+skill_proxy:
+  enabled: true
+  port: 8081

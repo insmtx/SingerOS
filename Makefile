@@ -51,4 +51,15 @@ generate-proto-go:
 generate-proto-node:
 	which protoc-gen-es || npm install -g @bufbuild/protoc-gen-es
 	protoc --plugin=protoc-gen-es --es_out=. proto/*.proto
+
+.PHONY: dev-env-up dev-env-down dev-env-logs
+
+dev-env-up:
+	docker-compose -f deployments/env/docker-compose.yml up
+
+dev-env-down:
+	docker-compose -f deployments/env/docker-compose.yml down
+
+dev-env-logs:
+	docker-compose -f deployments/env/docker-compose.yml logs -f
 	
