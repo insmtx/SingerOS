@@ -38,23 +38,32 @@ var rootCmd = &cobra.Command{
 
 		// Initialize event bus using configuration from config file
 		var rmqUrl string
-		if cfg.RabbitMQ != nil && cfg.RabbitMQ.URL != "" {
-			// Use URL from config file if available
-			rmqUrl = cfg.RabbitMQ.URL
-		} else if cfg.RabbitMQ != nil && cfg.RabbitMQ.Host != "" && cfg.RabbitMQ.Port > 0 {
-			// Construct URL from host/port config
-			username := cfg.RabbitMQ.Username
-			if username == "" {
-				username = "singer_user"
+		if cfg.RabbitMQ != nil {
+			if cfg.RabbitMQ.URL != "" {
+				// Use URL from config file if available
+				rmqUrl = cfg.RabbitMQ.URL
+				logs.Debugf("Using RabbitMQ URL from config: %s", rmqUrl)
+			} else if cfg.RabbitMQ.Host != "" && cfg.RabbitMQ.Port > 0 {
+				// Construct URL from host/port config
+				username := cfg.RabbitMQ.Username
+				if username == "" {
+					username = "singer_user"
+				}
+				password := cfg.RabbitMQ.Password
+				if password == "" {
+					password = "singer_password"
+				}
+				rmqUrl = fmt.Sprintf("amqp://%s:%s@%s:%d/", username, password, cfg.RabbitMQ.Host, cfg.RabbitMQ.Port)
+				logs.Debugf("Constructing RabbitMQ URL from host/port: %s", rmqUrl)
+			} else {
+				// Use Docker compose service name as fallback
+				rmqUrl = "amqp://singer_user:singer_password@rabbitmq:5672/"
+				logs.Debugf("Using default RabbitMQ URL as fallback: %s", rmqUrl)
 			}
-			password := cfg.RabbitMQ.Password
-			if password == "" {
-				password = "singer_password"
-			}
-			rmqUrl = fmt.Sprintf("amqp://%s:%s@%s:%d/", username, password, cfg.RabbitMQ.Host, cfg.RabbitMQ.Port)
 		} else {
-			// Default URL as fallback
+			// Config object doesn't contain RabbitMQ section - use Docker compose service as fallback
 			rmqUrl = "amqp://singer_user:singer_password@rabbitmq:5672/"
+			logs.Debugf("Config has no RabbitMQ section, using default: %s", rmqUrl)
 		}
 
 		rmqCfg := ygconfig.RabbitMQConfig{URL: rmqUrl}
