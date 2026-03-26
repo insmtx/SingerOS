@@ -36,8 +36,13 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		// Initialize event bus
-		rmqCfg := ygconfig.RabbitMQConfig{URL: "amqp://guest:guest@localhost:5672/"}
+		// Initialize event bus using environment variable or docker-compose defaults
+		rmqUrl := os.Getenv("RABBITMQ_URL")
+		if rmqUrl == "" {
+			rmqUrl = "amqp://singer_user:singer_password@rabbitmq:5672/"
+		}
+
+		rmqCfg := ygconfig.RabbitMQConfig{URL: rmqUrl}
 		publisher, _, err := rabbitmq.NewPublisher(rmqCfg)
 		if err != nil {
 			logs.Fatalf("Failed to create event publisher: %v", err)
