@@ -11,6 +11,15 @@ docker-build-skill-proxy:
 
 docker-build-all: docker-build-singer docker-build-skill-proxy
 
+# Targets with Docker BuildKit for enhanced cache usage
+docker-build-singer-cache:
+	DOCKER_BUILDKIT=1 docker build --build-arg BUILDKIT_INLINE_CACHE=1 -t $(REGISTRY)$(PROJECT)-singer:latest -f deployments/build/Dockerfile.singer .
+
+docker-build-skill-proxy-cache:
+	DOCKER_BUILDKIT=1 docker build --build-arg BUILDKIT_INLINE_CACHE=1 -t $(REGISTRY)$(PROJECT)-skill-proxy:latest -f deployments/build/Dockerfile.skill-proxy .
+
+docker-build-cache-all: docker-build-singer-cache docker-build-skill-proxy-cache
+
 docker-push:
 
 docker-push-singer:
