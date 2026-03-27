@@ -6,6 +6,7 @@ import {
   IconPhoto,
   IconUpload,
 } from '@tabler/icons-react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -14,10 +15,10 @@ import { useLayoutStore } from '@/store/appStore';
 type QuickAction = {
   id: string;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 };
 
-const quickActions: QuickAction[] = [
+const QUICK_ACTIONS: QuickAction[] = [
   {
     id: 'review',
     label: '代码审查',
@@ -39,7 +40,7 @@ type ArtifactFile = {
   updatedAt: number;
 };
 
-const mockArtifacts: ArtifactFile[] = [
+const MOCK_ARTIFACTS: ArtifactFile[] = [
   {
     id: '1',
     name: 'review-summary.md',
@@ -54,33 +55,33 @@ const mockArtifacts: ArtifactFile[] = [
   },
 ];
 
+const TABS = [
+  {
+    id: 'shortcuts' as const,
+    label: '快捷',
+    icon: <IconBolt className="size-4" />,
+  },
+  {
+    id: 'inbox' as const,
+    label: '收件箱',
+    icon: <IconInbox className="size-4" />,
+  },
+  {
+    id: 'artifacts' as const,
+    label: '工件',
+    icon: <IconFile className="size-4" />,
+  },
+];
+
 export function RightRail() {
   const { activeRightTab, setActiveRightTab } = useLayoutStore(
     (state) => state,
   );
 
-  const tabs = [
-    {
-      id: 'shortcuts' as const,
-      label: '快捷',
-      icon: <IconBolt className="size-4" />,
-    },
-    {
-      id: 'inbox' as const,
-      label: '收件箱',
-      icon: <IconInbox className="size-4" />,
-    },
-    {
-      id: 'artifacts' as const,
-      label: '工件',
-      icon: <IconFile className="size-4" />,
-    },
-  ];
-
   return (
     <div className="flex h-full w-[280px] flex-col border-l border-slate-200 bg-white">
       <div className="flex border-b border-slate-200">
-        {tabs.map((tab) => (
+        {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -105,7 +106,7 @@ export function RightRail() {
               <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
                 快捷操作
               </h3>
-              {quickActions.map((action) => (
+              {QUICK_ACTIONS.map((action) => (
                 <Button
                   key={action.id}
                   variant="outline"
@@ -145,7 +146,7 @@ export function RightRail() {
               <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
                 工件文件
               </h3>
-              {mockArtifacts.map((artifact) => (
+              {MOCK_ARTIFACTS.map((artifact) => (
                 <div
                   key={artifact.id}
                   className="flex items-center gap-3 p-2 rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
@@ -168,7 +169,7 @@ export function RightRail() {
                   </div>
                 </div>
               ))}
-              {mockArtifacts.length === 0 && (
+              {MOCK_ARTIFACTS.length === 0 && (
                 <p className="text-sm text-slate-400 text-center py-4">
                   暂无工件
                 </p>

@@ -4,6 +4,7 @@ import {
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react';
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -20,8 +21,15 @@ export function LeftRail() {
     deleteConversation,
   } = useLayoutStore((state) => state);
 
-  const getWorkspaceConversations = (workspaceId: string) =>
-    conversations.filter((c) => c.workspaceId === workspaceId);
+  const conversationsByWorkspace = useMemo(() => {
+    const map = new Map<string, typeof conversations>();
+    for (const c of conversations) {
+      const list = map.get(c.workspaceId) ?? [];
+      list.push(c);
+      map.set(c.workspaceId, list);
+    }
+    return map;
+  }, [conversations]);
 
   return (
     <div className="flex h-full w-[260px] flex-col border-r border-slate-200 bg-white">
@@ -59,7 +67,7 @@ export function LeftRail() {
 
               {!workspace.collapsed && (
                 <div className="mt-0.5 ml-4">
-                  {getWorkspaceConversations(workspace.id).map(
+                  {(conversationsByWorkspace.get(workspace.id) ?? []).map(
                     (conversation) => (
                       <button
                         key={conversation.id}

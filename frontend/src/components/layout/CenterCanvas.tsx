@@ -5,7 +5,7 @@ import {
   IconPlayerStop,
   IconSend,
 } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -48,7 +48,7 @@ const mockMessages: Message[] = [
   },
 ];
 
-const modelOptions = ['GPT-4', 'Claude-3', 'DeepSeek'];
+const MODEL_OPTIONS = ['GPT-4', 'Claude-3', 'DeepSeek'] as const;
 
 function formatTime(timestamp: number) {
   return new Date(timestamp).toLocaleTimeString('zh-CN', {
@@ -63,12 +63,12 @@ export function CenterCanvas() {
   );
   const [inputValue, setInputValue] = useState('');
   const [isGenerating] = useState(false);
-  const [selectedModel] = useState(modelOptions[0]);
+  const [selectedModel] = useState(MODEL_OPTIONS[0]);
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (!inputValue.trim()) return;
     setInputValue('');
-  };
+  }, [inputValue]);
 
   return (
     <div className="flex h-full flex-1 flex-col bg-slate-50">
