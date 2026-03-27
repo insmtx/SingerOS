@@ -1,0 +1,22 @@
+# SingerOS Configuration Example
+github:
+  app_id: 123456
+  private_key: "-----BEGIN RSA PRIVATE KEY-----\nyour-private-key-here\n-----END RSA PRIVATE KEY-----"
+  webhook_secret: your-webhook-secret
+  client_id: your-oauth-client-id
+  client_secret: your-oauth-client-secret
+  base_url: https://api.github.com
+  skip_webhook_verify: false  # 设置为true可跳过签名验证(仅开发环境使用!)
+
+gitlab:
+  # Gitlab app configuration (will be implemented as needed)
+  # app_id: 123456
+  # private_key: "-----BEGIN RSA PRIVATE KEY-----\n-----END RSA PRIVATE KEY-----"
+  # webhook_secret: your-gitlab-webhook-secret
+
+rabbitmq:
+  url: "amqp://singer_user:singer_password@rabbitmq:5672/"
+
+database:
+  url: "host=localhost user=singer password=singer dbname=singer port=5432 sslmode=disable"
+  debug: true

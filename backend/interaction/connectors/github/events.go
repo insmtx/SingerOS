@@ -2,14 +2,12 @@ package github
 
 import (
 	"github.com/google/go-github/v78/github"
+
 	"github.com/insmtx/SingerOS/backend/interaction"
 )
 
-// convertEvent
-func (c *GitHubConnector) convertEvent(
-	eventType string,
-	event any,
-) *interaction.Event {
+// convertEvent converts GitHub events to SingerOS interaction events.
+func (c *Connector) convertEvent(eventType string, event any) *interaction.Event {
 	switch eventType {
 	case "issue_comment":
 		return c.convertIssueComment(event.(*github.IssueCommentEvent))
@@ -20,10 +18,8 @@ func (c *GitHubConnector) convertEvent(
 	}
 }
 
-func (c *GitHubConnector) convertIssueComment(
-	event *github.IssueCommentEvent,
-) *interaction.Event {
-
+// convertIssueComment converts GitHub IssueCommentEvent to SingerOS Event.
+func (c *Connector) convertIssueComment(event *github.IssueCommentEvent) *interaction.Event {
 	return &interaction.Event{
 		Channel:    c.ChannelCode(),
 		EventType:  EventTypeIssueComment,
@@ -37,10 +33,8 @@ func (c *GitHubConnector) convertIssueComment(
 	}
 }
 
-func (c *GitHubConnector) convertPullRequest(
-	event *github.PullRequestEvent,
-) *interaction.Event {
-
+// convertPullRequest converts GitHub PullRequestEvent to SingerOS Event.
+func (c *Connector) convertPullRequest(event *github.PullRequestEvent) *interaction.Event {
 	return &interaction.Event{
 		Channel:    c.ChannelCode(),
 		EventType:  EventTypePullRequest,

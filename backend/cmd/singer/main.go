@@ -11,12 +11,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/insmtx/SingerOS/backend/config"
+	"github.com/insmtx/SingerOS/backend/database"
 	"github.com/insmtx/SingerOS/backend/interaction/eventbus/rabbitmq"
 	gateway "github.com/insmtx/SingerOS/backend/interaction/gateway"
 	orchestrator "github.com/insmtx/SingerOS/backend/orchestrator"
 	"github.com/spf13/cobra"
 	ygconfig "github.com/ygpkg/yg-go/config"
 	"github.com/ygpkg/yg-go/logs"
+	"gorm.io/gorm"
 )
 
 var (
@@ -52,11 +54,28 @@ var rootCmd = &cobra.Command{
 		// Create orchestrator to consume events
 		orchestratorInstance := orchestrator.NewOrchestrator(publisher)
 
+		// Initialize database if configuration is provided
+		var db *gorm.DB
+		if cfg.Database != nil && cfg.Database.URL != "" {
+			var err error
+			db, err = database.InitDB(*cfg.Database)
+			if err != nil {
+				logs.Fatalf("Failed to initialize database: %v", err)
+				return
+			}
+			logs.Info("Database initialized successfully")
+		} else {
+			logs.Warn("No database configuration provided")
+			logs.Warn("  - Database-dependent features (user persistence, etc.) will be unavailable")
+			logs.Warn("  - To enable database, add database.url to your config file")
+			logs.Warn("  - See example-config.yaml for database configuration example")
+		}
+
 		// Set up the HTTP router
 		r := gin.Default()
 
 		// Set up gateway with connectors
-		gateway.SetupRouter(r, *cfg, publisher)
+		gateway.SetupRouter(r, *cfg, publisher, db)
 
 		// Create HTTP server
 		srv := &http.Server{

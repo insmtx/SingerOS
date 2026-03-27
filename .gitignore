@@ -33,3 +33,4 @@ go.work.sum
 
 .agents/
 bundles
+deployments/env/config.yaml

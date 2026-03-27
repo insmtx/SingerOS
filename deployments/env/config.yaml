@@ -4,12 +4,8 @@ server:
   port: 8080
   
 database:
-  host: postgresql
-  port: 5432
-  username: singer_user
-  password: singer_password
-  dbname: singer_db
-  sslmode: disable
+  url: "postgres://singer_user:singer_password@postgresql:5432/singer_db?sslmode=disable"
+  debug: true
 
 rabbitmq:
   url: "amqp://singer_user:singer_password@rabbitmq:5672/"

@@ -10,15 +10,16 @@ import (
 	"github.com/insmtx/SingerOS/backend/interaction/connectors/gitlab"
 	"github.com/insmtx/SingerOS/backend/interaction/eventbus"
 	"github.com/ygpkg/yg-go/logs"
+	"gorm.io/gorm"
 )
 
-func SetupRouter(r gin.IRouter, cfg config.Config, publisher eventbus.Publisher) {
+func SetupRouter(r gin.IRouter, cfg config.Config, publisher eventbus.Publisher, db *gorm.DB) {
 	registry := interaction.NewRegistry()
 
 	// Check if GitHub configuration is provided and enabled
 	if cfg.Github != nil {
 		logs.Info("Setting up GitHub connector")
-		githubConnector := github.NewConnector(*cfg.Github, publisher)
+		githubConnector := github.NewConnector(*cfg.Github, publisher, db)
 		registry.Register(githubConnector)
 		logs.Info("GitHub connector registered successfully")
 	} else {

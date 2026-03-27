@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy go mod files first to leverage Docker layer caching with mount cache
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod \
+RUN --mount=type=cache,target=/go/pkg/ \
     go mod download
 
 # Copy source code
@@ -27,9 +27,9 @@ ARG TARGETOS
 ARG TARGETARCH
 
 # Build the application with module cache mounted
-RUN --mount=type=cache,target=/go/pkg/mod \
+RUN --mount=type=cache,target=/go/pkg/ \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -ldflags="-s -w" -o /build/singer ./backend/cmd/singer/main.go
+    go build -ldflags="-s -w" -v -o /build/singer ./backend/cmd/singer/main.go
 
 FROM registry.yygu.cn/library/ubuntu:24.04
 
