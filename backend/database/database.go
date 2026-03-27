@@ -1,3 +1,7 @@
+// database 包提供 SingerOS 的数据库初始化和管理功能
+//
+// 该包负责数据库连接的初始化、表结构的自动迁移，
+// 以及提供获取数据库实例的方法。
 package database
 
 import (
@@ -11,9 +15,13 @@ import (
 	"github.com/insmtx/SingerOS/backend/types"
 )
 
+// dbName 是数据库名称常量
 const dbName = "singer"
 
-// InitDB creates and initializes the database connection using dbtools.
+// InitDB 创建并初始化数据库连接
+//
+// 使用 dbtools 初始化数据库连接，并根据配置决定是否启用调试模式，
+// 最后运行数据库迁移来创建所有必要的表结构。
 func InitDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("database URL is required")
@@ -37,7 +45,9 @@ func InitDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	return db, nil
 }
 
-// runMigrations creates tables for all models.
+// runMigrations 为所有模型创建数据库表
+//
+// 该函数会自动为所有定义的模型创建或更新数据库表结构。
 func runMigrations(db *gorm.DB) error {
 	models := []interface{}{
 		&types.User{},
@@ -57,7 +67,7 @@ func runMigrations(db *gorm.DB) error {
 	return nil
 }
 
-// GetDB returns the default database instance.
+// GetDB 获取默认的数据库实例
 func GetDB() *gorm.DB {
 	return dbtools.DB(dbName)
 }

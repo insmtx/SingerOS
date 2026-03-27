@@ -1,3 +1,6 @@
+// main 包是 SingerOS 技能代理服务的主入口
+//
+// 技能代理服务负责技能的隔离执行和管理，提供安全的技能运行环境。
 package main
 
 import (

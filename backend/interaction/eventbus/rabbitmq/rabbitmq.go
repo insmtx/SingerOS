@@ -1,3 +1,7 @@
+// rabbitmq 包提供基于 RabbitMQ 的事件总线实现
+//
+// 该包实现了 eventbus.Publisher 和 eventbus.Subscriber 接口，
+// 使用 RabbitMQ 作为消息中间件来实现事件的发布和订阅。
 package rabbitmq
 
 import (

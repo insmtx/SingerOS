@@ -1,3 +1,7 @@
+// examples 包提供 SingerOS 技能系统的示例实现
+//
+// 该包包含示例技能，演示如何实现 Skill 接口，
+// 供开发者参考和学习。
 package examples
 
 import (
@@ -92,5 +96,3 @@ func (s *ExampleSkill) Execute(ctx context.Context, input map[string]interface{}
 
 	return result, nil
 }
-
-// Override Validate 如果需要额外的验证逻辑

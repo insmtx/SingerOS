@@ -1,3 +1,7 @@
+// skills 包提供 SingerOS 的技能系统定义和实现
+//
+// 技能是 SingerOS 的核心能力单元，可以是本地实现的功能，
+// 也可以是远程 API 服务。该包定义了技能接口、基础实现和相关类型。
 package skills
 
 import (

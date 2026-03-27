@@ -1,3 +1,7 @@
+// github 包提供 GitHub 平台的连接器实现
+//
+// 该包实现了与 GitHub 平台的集成，包括 Webhook 事件接收、
+// OAuth 认证流程、用户信息同步等功能。
 package github
 
 import (

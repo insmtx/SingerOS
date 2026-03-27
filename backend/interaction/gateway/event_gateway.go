@@ -1,3 +1,7 @@
+// gateway 包提供事件网关的路由设置功能
+//
+// 该包负责设置事件网关的 HTTP 路由，注册各种渠道的连接器，
+// 包括 GitHub、GitLab 和客户端 WebSocket 等连接器。
 package gateway
 
 import (
@@ -13,6 +17,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// SetupRouter 设置事件网关的路由，注册所有连接器
+//
+// 根据配置初始化并注册 GitHub、GitLab 等渠道连接器，
+// 同时设置客户端 WebSocket 连接器，并将所有连接器的路由注册到 HTTP 服务器。
 func SetupRouter(r gin.IRouter, cfg config.Config, publisher eventbus.Publisher, db *gorm.DB) {
 	registry := interaction.NewRegistry()
 

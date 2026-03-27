@@ -1,3 +1,7 @@
+// types 包提供 SingerOS 的核心数据类型定义
+//
+// 该包定义了数字助手、事件、用户、技能等核心领域模型，
+// 以及相关的常量和数据库表名定义。
 package types
 
 // DigitalAssistantStatus 表示数字助手的当前运行状态

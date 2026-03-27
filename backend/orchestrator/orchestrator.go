@@ -1,3 +1,7 @@
+// orchestrator 包提供 SingerOS 的事件编排器功能
+//
+// 编排器负责从事件总线订阅事件，并根据事件类型分发到相应的处理器进行处理。
+// 是 SingerOS 事件驱动架构的核心协调组件。
 package orchestrator
 
 import (
@@ -10,13 +14,16 @@ import (
 	"github.com/ygpkg/yg-go/logs"
 )
 
+// EventHandlerFunc 是事件处理函数的类型定义
 type EventHandlerFunc func(ctx context.Context, event *interaction.Event) error
 
+// Orchestrator 是事件编排器，负责事件的订阅、分发和处理
 type Orchestrator struct {
-	subscriber eventbus.Subscriber
-	handlers   map[string]EventHandlerFunc
+	subscriber eventbus.Subscriber         // 事件订阅者
+	handlers   map[string]EventHandlerFunc // 事件主题到处理器的映射
 }
 
+// NewOrchestrator 创建一个新的事件编排器实例
 func NewOrchestrator(subscriber eventbus.Subscriber) *Orchestrator {
 	orchestrator := &Orchestrator{
 		subscriber: subscriber,
@@ -29,6 +36,7 @@ func NewOrchestrator(subscriber eventbus.Subscriber) *Orchestrator {
 	return orchestrator
 }
 
+// registerDefaultHandlers 注册默认的事件处理器
 func (o *Orchestrator) registerDefaultHandlers() {
 	// 处理GitHub issue_comment事件
 	o.handlers[interaction.TopicGithubIssueComment] = o.handleIssueComment
@@ -37,6 +45,7 @@ func (o *Orchestrator) registerDefaultHandlers() {
 	o.handlers[interaction.TopicGithubPullRequest] = o.handlePullRequest
 }
 
+// Start 启动编排器，开始订阅和处理事件
 func (o *Orchestrator) Start(ctx context.Context) error {
 	for topic, handler := range o.handlers {
 		go func(t string, h EventHandlerFunc) {
@@ -71,6 +80,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	return nil
 }
 
+// handleIssueComment 处理 GitHub Issue 评论事件
 func (o *Orchestrator) handleIssueComment(ctx context.Context, event *interaction.Event) error {
 	logs.Infof("Processing GitHub issue comment event: %+v", event)
 
@@ -81,7 +91,7 @@ func (o *Orchestrator) handleIssueComment(ctx context.Context, event *interactio
 	return nil
 }
 
-// 为接收PR事件预留的方法
+// handlePullRequest 处理 GitHub Pull Request 事件
 func (o *Orchestrator) handlePullRequest(ctx context.Context, event *interaction.Event) error {
 	logs.Infof("Processing GitHub pull request event: %+v", event)
 
