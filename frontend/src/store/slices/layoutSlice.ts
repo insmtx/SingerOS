@@ -1,8 +1,6 @@
 import type { SliceCreator } from '../types';
 import { flattenActions } from '../utils';
 
-export type WorkspaceMode = 'remote' | 'local';
-
 export type Conversation = {
   id: string;
   title: string;
@@ -14,7 +12,6 @@ export type Conversation = {
 export type Workspace = {
   id: string;
   name: string;
-  mode: WorkspaceMode;
   collapsed: boolean;
 };
 
@@ -26,7 +23,7 @@ export type LayoutState = {
   workspaces: Workspace[];
   conversations: Conversation[];
   inputFocused: boolean;
-  activeRightTab: 'shortcuts' | 'inbox' | 'artifacts';
+  activeRightTab: 'shortcuts' | 'uploads' | 'generated';
 };
 
 export type LayoutAction = Pick<LayoutActionImpl, keyof LayoutActionImpl>;
@@ -37,31 +34,21 @@ const _initialState: LayoutState = {
   rightRailCollapsed: false,
   activeConversationId: null,
   activeWorkspaceId: null,
-  workspaces: [
-    { id: 'remote-1', name: '远程工作区', mode: 'remote', collapsed: false },
-    { id: 'local-1', name: '本地工作区', mode: 'local', collapsed: false },
-  ],
+  workspaces: [{ id: 'ws-1', name: '工作区', collapsed: false }],
   conversations: [
     {
       id: 'conv-1',
       title: '代码审查讨论',
-      workspaceId: 'remote-1',
+      workspaceId: 'ws-1',
       createdAt: Date.now(),
       updatedAt: Date.now(),
     },
     {
       id: 'conv-2',
       title: '项目规划',
-      workspaceId: 'remote-1',
+      workspaceId: 'ws-1',
       createdAt: Date.now() - 3600000,
       updatedAt: Date.now() - 3600000,
-    },
-    {
-      id: 'conv-3',
-      title: '本地测试会话',
-      workspaceId: 'local-1',
-      createdAt: Date.now() - 7200000,
-      updatedAt: Date.now() - 7200000,
     },
   ],
   inputFocused: false,
@@ -141,7 +128,7 @@ export class LayoutActionImpl {
     this.#set({ inputFocused: focused });
   };
 
-  setActiveRightTab = (tab: 'shortcuts' | 'inbox' | 'artifacts') => {
+  setActiveRightTab = (tab: 'shortcuts' | 'uploads' | 'generated') => {
     this.#set({ activeRightTab: tab });
   };
 }

@@ -2,8 +2,8 @@ import {
   IconBolt,
   IconFile,
   IconFileText,
-  IconInbox,
   IconPhoto,
+  IconSparkles,
   IconUpload,
 } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
@@ -54,28 +54,28 @@ const mockArtifacts: ArtifactFile[] = [
   },
 ];
 
+const tabs = [
+  {
+    id: 'shortcuts' as const,
+    label: '操作',
+    icon: <IconBolt className="size-4" />,
+  },
+  {
+    id: 'uploads' as const,
+    label: '上传',
+    icon: <IconUpload className="size-4" />,
+  },
+  {
+    id: 'generated' as const,
+    label: '生成',
+    icon: <IconSparkles className="size-4" />,
+  },
+];
+
 export function RightRail() {
   const { activeRightTab, setActiveRightTab } = useLayoutStore(
     (state) => state,
   );
-
-  const tabs = [
-    {
-      id: 'shortcuts' as const,
-      label: '快捷',
-      icon: <IconBolt className="size-4" />,
-    },
-    {
-      id: 'inbox' as const,
-      label: '收件箱',
-      icon: <IconInbox className="size-4" />,
-    },
-    {
-      id: 'artifacts' as const,
-      label: '工件',
-      icon: <IconFile className="size-4" />,
-    },
-  ];
 
   return (
     <div className="flex h-full w-[280px] flex-col border-l border-slate-200 bg-white">
@@ -119,10 +119,10 @@ export function RightRail() {
             </div>
           )}
 
-          {activeRightTab === 'inbox' && (
+          {activeRightTab === 'uploads' && (
             <div className="space-y-3">
               <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
-                文件收件箱
+                上传内容
               </h3>
               <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-slate-300 transition-colors cursor-pointer">
                 <IconUpload className="size-8 mx-auto text-slate-300 mb-2" />
@@ -140,10 +140,10 @@ export function RightRail() {
             </div>
           )}
 
-          {activeRightTab === 'artifacts' && (
+          {activeRightTab === 'generated' && (
             <div className="space-y-3">
               <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
-                工件文件
+                模型生成内容
               </h3>
               {mockArtifacts.map((artifact) => (
                 <div
@@ -170,7 +170,7 @@ export function RightRail() {
               ))}
               {mockArtifacts.length === 0 && (
                 <p className="text-sm text-slate-400 text-center py-4">
-                  暂无工件
+                  暂无生成内容
                 </p>
               )}
             </div>
