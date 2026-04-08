@@ -9,12 +9,21 @@ type RabbitMQConfig struct {
 	URL string `yaml:"url,omitempty" json:"url,omitempty"` // RabbitMQ 服务地址
 }
 
+// LLMConfig is the configuration structure for LLM providers
+type LLMConfig struct {
+	Provider string `yaml:"provider"`           // LLM Provider (openai, claude, etc.)
+	APIKey   string `yaml:"api_key"`            // API Key
+	Model    string `yaml:"model,omitempty"`    // Default model
+	BaseURL  string `yaml:"base_url,omitempty"` // Custom base URL
+}
+
 // Config 是 SingerOS 的主配置结构，包含所有子系统的配置
 type Config struct {
 	Github   *GithubAppConfig `yaml:"github,omitempty"`   // GitHub 应用配置
 	Gitlab   *GitlabAppConfig `yaml:"gitlab,omitempty"`   // GitLab 应用配置
 	RabbitMQ *RabbitMQConfig  `yaml:"rabbitmq,omitempty"` // RabbitMQ 消息队列配置
 	Database *DatabaseConfig  `yaml:"database,omitempty"` // 数据库配置
+	LLM      *LLMConfig       `yaml:"llm,omitempty"`      // LLM 配置
 }
 
 // DatabaseConfig 是数据库的配置结构

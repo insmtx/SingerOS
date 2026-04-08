@@ -11,16 +11,21 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/insmtx/SingerOS/backend/agent/react"
 	"github.com/insmtx/SingerOS/backend/config"
 	"github.com/insmtx/SingerOS/backend/database"
 	"github.com/insmtx/SingerOS/backend/interaction/eventbus/rabbitmq"
 	gateway "github.com/insmtx/SingerOS/backend/interaction/gateway"
+	"github.com/insmtx/SingerOS/backend/llm"
+	openai_llm "github.com/insmtx/SingerOS/backend/llm/openai"
 	orchestrator "github.com/insmtx/SingerOS/backend/orchestrator"
 	skills "github.com/insmtx/SingerOS/backend/skills"
+	code_review_skill "github.com/insmtx/SingerOS/backend/skills/tool_skills/code_review_skill"
 	echo_skill "github.com/insmtx/SingerOS/backend/skills/tool_skills/echo_skill"
 	"github.com/spf13/cobra"
 	ygconfig "github.com/ygpkg/yg-go/config"
@@ -68,8 +73,52 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		// Create orchestrator to consume events with skill manager
-		orchestratorInstance := orchestrator.NewOrchestrator(publisher, skillManager)
+		// Register additional programming-related skills for ReAct agent
+		// - Code review skill
+		// - PR analysis skill
+		// - Documentation search skill
+		// This can happen via dynamic skill loading mechanism
+
+		// Create and register the code review skill
+		codeReviewSkill := code_review_skill.NewCodeReviewSkill()
+		if err := skillManager.Register(codeReviewSkill); err != nil {
+			logs.Fatalf("Failed to register code review skill: %v", err)
+			return
+		}
+
+		// Create and register the PR analysis skill
+		prAnalysisSkill := react.NewPRAnalysisSkill()
+		if err := skillManager.Register(prAnalysisSkill); err != nil {
+			logs.Fatalf("Failed to register PR analysis skill: %v", err)
+			return
+		}
+
+		// Initialize LLM provider
+		var llmProvider llm.Provider
+		if cfg.LLM != nil && cfg.LLM.APIKey != "" {
+			// Configure LLM provider based on config
+			switch cfg.LLM.Provider {
+			case "openai", "":
+				llmConfig := openai_llm.DefaultConfig(cfg.LLM.APIKey)
+				if cfg.LLM.BaseURL != "" {
+					llmConfig.BaseURL = cfg.LLM.BaseURL
+				}
+				if cfg.LLM.Model != "" {
+					// We can customize default model if needed
+				}
+				llmProvider = openai_llm.NewProvider(llmConfig)
+			default:
+				logs.Fatalf("Unsupported LLM provider: %s", cfg.LLM.Provider)
+				return
+			}
+		} else {
+			logs.Warnf("No LLM configuration provided, using mock provider for testing")
+			// Create a mock provider for testing/development purposes
+			llmProvider = &mockLLMProvider{}
+		}
+
+		// Create orchestrator to consume events with skill manager and LLM provider
+		orchestratorInstance := orchestrator.NewOrchestrator(publisher, skillManager, llmProvider)
 
 		// Initialize database if configuration is provided
 		var db *gorm.DB
@@ -181,4 +230,50 @@ func main() {
 		logs.Errorf("Error executing command: %v", err)
 		os.Exit(1)
 	}
+}
+
+// Mock LLM provider for development/testing when no API key is provided
+type mockLLMProvider struct{}
+
+func (m *mockLLMProvider) Name() string { return "mock" }
+func (m *mockLLMProvider) Generate(ctx context.Context, req *llm.GenerateRequest) (*llm.GenerateResponse, error) {
+	responseContent := "This is a mock response for development/testing. Actual LLM response would appear here."
+	if len(req.Messages) > 0 {
+		// Simple example of appending message content to simulate a response
+		lastMessage := req.Messages[len(req.Messages)-1]
+		responseContent = fmt.Sprintf("Mock processing of: %s", lastMessage.Content)
+	}
+
+	return &llm.GenerateResponse{
+		Content: responseContent,
+		Usage: llm.TokenUsage{
+			PromptTokens:     10,
+			CompletionTokens: 20,
+			TotalTokens:      30,
+		},
+		FinishReason: "stop",
+	}, nil
+}
+
+func (m *mockLLMProvider) GenerateStream(ctx context.Context, req *llm.GenerateRequest) (<-chan llm.StreamChunk, error) {
+	ch := make(chan llm.StreamChunk, 1)
+
+	// Send a mock response
+	go func() {
+		defer close(ch)
+		ch <- llm.StreamChunk{
+			Content: "This is a mock streaming response from development/testing.",
+			Done:    true,
+		}
+	}()
+
+	return ch, nil
+}
+
+func (m *mockLLMProvider) CountTokens(text string) int {
+	return len(strings.Fields(text)) // Simple estimation
+}
+
+func (m *mockLLMProvider) Models() []string {
+	return []string{"mock-model"}
 }

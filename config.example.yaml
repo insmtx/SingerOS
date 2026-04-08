@@ -1,6 +1,30 @@
-# SingerOS Configuration
+# SingerOS Configuration with ReAct Agent Extension
+#
+# This updated configuration includes support for ReAct Agent Runtime and 
+# programmer assistant functionality
+
+# GitHub App configuration
 github:
-  appId: 123456
-  privateKey: "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n"
-  webhookSecret: "your_webhook_secret_here"
-  baseURL: "https://api.github.com"
+  app_id: 123456                           # GitHub App ID
+  private_key: "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----\n"  # GitHub App Private Key
+  webhook_secret: "your_webhook_secret_here" # Webhook Signature Secret
+  base_url: "https://api.github.com"       # GitHub API Base URL
+
+# RabbitMQ messaging queue configuration
+rabbitmq:
+  url: "amqp://singer_user:singer_password@localhost:5672/"  # RabbitMQ Connection URL
+  
+# Database configuration
+database:
+  url: "postgres://username:password@localhost/dbname"  # Database Connection URL
+  debug: false                                       # Enable SQL Logging
+
+# NEW: LLM Provider configuration for ReAct Agent integration
+llm:
+  provider: "openai"                     # LLM Provider: openai, claude, etc
+  api_key: "${OPENAI_API_KEY}"          # Secure API Key (use env var in production)
+  model: "gpt-4-turbo"                  # Preferred model for ReAct Agent
+  base_url: "https://api.openai.com/v1" # Custom endpoint (optional)
+
+logging:
+  level: "info"                        # Logging Level: debug, info, warn, error

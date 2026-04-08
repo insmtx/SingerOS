@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	"github.com/insmtx/SingerOS/backend/interaction"
-	skills "github.com/insmtx/SingerOS/backend/skills"
+	"github.com/insmtx/SingerOS/backend/llm"
+	"github.com/insmtx/SingerOS/backend/skills"
 )
 
 // 测试Orchestrator是否可以初始化并注册默认处理器
@@ -13,8 +14,9 @@ func TestOrchestratorInit(t *testing.T) {
 	// 创建一个简单的subscriber实现
 	subscriber := &mockSubscriber{}
 	skillManager := skills.NewSimpleSkillManager()
+	llmProvider := &mockLLMProvider{}
 
-	orchestrator := NewOrchestrator(subscriber, skillManager)
+	orchestrator := NewOrchestrator(subscriber, skillManager, llmProvider)
 
 	// 验证默认事件处理器被正确注册
 	if _, exists := orchestrator.handlers["interaction.github.issue_comment"]; !exists {
@@ -30,7 +32,8 @@ func TestOrchestratorInit(t *testing.T) {
 func TestOrchestratorRegisterAndGet(t *testing.T) {
 	subscriber := &mockSubscriber{}
 	skillManager := skills.NewSimpleSkillManager()
-	orchestrator := NewOrchestrator(subscriber, skillManager)
+	llmProvider := &mockLLMProvider{}
+	orchestrator := NewOrchestrator(subscriber, skillManager, llmProvider)
 
 	// 注册一个自定义处理器
 	customTopic := "test.custom.topic"
@@ -69,3 +72,25 @@ type mockSubscriber struct{}
 func (ms *mockSubscriber) Subscribe(ctx context.Context, topic string, handler func(event any)) error {
 	return nil
 }
+
+// Mock LLM provider for testing
+type mockLLMProvider struct{}
+
+func (m *mockLLMProvider) Name() string { return "mock" }
+func (m *mockLLMProvider) Generate(ctx context.Context, req *llm.GenerateRequest) (*llm.GenerateResponse, error) {
+	return &llm.GenerateResponse{
+		Content: "Mock response for testing",
+		Usage: llm.TokenUsage{
+			PromptTokens:     1,
+			CompletionTokens: 1,
+			TotalTokens:      2,
+		},
+	}, nil
+}
+func (m *mockLLMProvider) GenerateStream(ctx context.Context, req *llm.GenerateRequest) (<-chan llm.StreamChunk, error) {
+	ch := make(chan llm.StreamChunk, 1)
+	close(ch)
+	return ch, nil
+}
+func (m *mockLLMProvider) CountTokens(text string) int { return len(text) / 4 }
+func (m *mockLLMProvider) Models() []string            { return []string{"mock-model"} }

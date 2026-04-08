@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/insmtx/SingerOS/backend/agent/react"
 	"github.com/insmtx/SingerOS/backend/interaction"
 	"github.com/insmtx/SingerOS/backend/interaction/eventbus"
+	"github.com/insmtx/SingerOS/backend/llm"
 	skills "github.com/insmtx/SingerOS/backend/skills"
 	"github.com/ygpkg/yg-go/logs"
 )
@@ -20,18 +22,22 @@ type EventHandlerFunc func(ctx context.Context, event *interaction.Event) error
 
 // Orchestrator 是事件编排器，负责事件的订阅、分发和处理
 type Orchestrator struct {
-	subscriber   eventbus.Subscriber         // 事件订阅者
-	skillManager skills.SkillManager         // 技能管理器
-	handlers     map[string]EventHandlerFunc // 事件主题到处理器的映射
+	subscriber        eventbus.Subscriber         // 事件订阅者
+	skillManager      skills.SkillManager         // 技能管理器
+	agentOrchestrator *react.AgentOrchestrator    // ReAct 代理编排器
+	handlers          map[string]EventHandlerFunc // 事件主题到处理器的映射
 }
 
 // NewOrchestrator 创建一个新的事件编排器实例
-func NewOrchestrator(subscriber eventbus.Subscriber, skillManager skills.SkillManager) *Orchestrator {
+func NewOrchestrator(subscriber eventbus.Subscriber, skillManager skills.SkillManager, llmProvider llm.Provider) *Orchestrator {
 	orchestrator := &Orchestrator{
 		subscriber:   subscriber,
 		skillManager: skillManager,
 		handlers:     make(map[string]EventHandlerFunc),
 	}
+
+	// 初始化ReAct Agent编排器
+	orchestrator.agentOrchestrator = react.NewAgentOrchestrator(llmProvider, skillManager)
 
 	// 注册默认处理器
 	orchestrator.registerDefaultHandlers()
@@ -85,55 +91,18 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 
 // handleIssueComment 处理 GitHub Issue 评论事件
 func (o *Orchestrator) handleIssueComment(ctx context.Context, event *interaction.Event) error {
-	logs.InfoContextf(ctx, "Processing GitHub issue comment event: %+v", event)
+	logs.InfoContextf(ctx, "Processing GitHub issue comment event with ReAct agent: %+v", event)
 
-	// 在这里可以添加实际业务逻辑，比如使用LLM分析评论内容
-	logs.InfoContextf(ctx, "GitHub Issue Comment - Repository: %s, Actor: %s, Payload: %+v",
-		event.Repository, event.Actor, event.Payload)
-
-	return nil
+	// 使用 ReAct Agent 处理事件
+	return o.agentOrchestrator.HandleEventAdvanced(ctx, event)
 }
 
 // handlePullRequest 处理 GitHub Pull Request 事件
 func (o *Orchestrator) handlePullRequest(ctx context.Context, event *interaction.Event) error {
-	logs.InfoContextf(ctx, "Processing GitHub pull request event: %+v", event)
+	logs.InfoContextf(ctx, "Processing GitHub pull request event with ReAct agent: %+v", event)
 
-	// 在这里可以添加对PR事件的处理逻辑
-	action, ok := event.Payload.(map[string]interface{})["action"]
-	if !ok {
-		action = "unknown"
-	}
-
-	number, ok := event.Payload.(map[string]interface{})["pr_number"]
-	if !ok {
-		number = "unknown"
-	}
-
-	logs.InfoContextf(ctx, "GitHub Pull Request - Action: %s, Number: %v, Repository: %s, Actor: %s",
-		action, number, event.Repository, event.Actor)
-
-	// 记录payload中的详细信息以便进行处理
-	logs.DebugContextf(ctx, "GitHub Pull Request Payload: %+v", event.Payload)
-
-	// 调用 Echo 技能看到技能管理器是否正常工作
-	title, ok := event.Payload.(map[string]interface{})["title"]
-	if !ok {
-		title = "No Title"
-	}
-
-	echoInput := map[string]interface{}{
-		"input": fmt.Sprintf("New PR received: %s, Action: %s", title, action),
-	}
-
-	echoResult, err := o.skillManager.Execute(ctx, "echo.simple_echo", echoInput)
-	if err != nil {
-		logs.ErrorContextf(ctx, "Failed to execute echo skill: %v", err)
-		return nil // 错误不应影响主流程
-	}
-
-	logs.InfoContextf(ctx, "Echo skill result: %v", echoResult)
-
-	return nil
+	// 使用 ReAct Agent 处理 PR 事件
+	return o.agentOrchestrator.HandleEventAdvanced(ctx, event)
 }
 
 // RegisterHandler 允许外部注册新的事件处理器
