@@ -54,6 +54,10 @@ func (c *Connector) handleWebhook(ctx *gin.Context) {
 	}
 
 	interactionEvent := c.convertEvent(eventType, event)
+	if interactionEvent == nil {
+		w.WriteHeader(httpOK)
+		return
+	}
 	topicName := c.determineTopic(eventType)
 
 	c.publisher.Publish(ctx, topicName, interactionEvent)
@@ -86,6 +90,8 @@ func (c *Connector) determineTopic(eventType string) string {
 		return interaction.TopicGithubIssueComment
 	case "pull_request":
 		return interaction.TopicGithubPullRequest
+	case "push":
+		return interaction.TopicGithubPush
 	default:
 		return interaction.TopicGithubIssueComment
 	}

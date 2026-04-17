@@ -1,27 +1,32 @@
 # Skills 系统
 
-SingerOS 的技能系统提供了一种模块化的方式来实现不同的能力和功能。这个系统允许通过标准化接口集成各种功能。
+SingerOS 的 `skills` 目录现在只承载知识型 skills，不再保留可执行 skill 接口、skill manager 或 tool skill 示例。
 
-## 组织结构
+## 当前目录结构
 
-- `backend/skills/` - 技能系统的核心接口定义和基础组件
-  - `skill.go` - 定义技能的基本接口
-  - `manager.go` - 技能管理器的实现
-  - `type_converter.go` - 类型转换工具
-  - `examples/` - 技能实现示例
-  - `tool_skills/` - 工具类技能集合
-    - `echo_skill/` - 回声技能（示例），返回输入的内容加上 "Echo: " 前缀
+- `backend/skills/catalog/` - `SKILL.md` 的扫描、解析、读取与索引
+- `backend/skills/bundled/` - 跟随服务发布的内置知识型 skills
 
-## 如何添加新技能
+## 如何添加新 skill
 
-1. 确定技能所属类别（工具类、AI类、集成类等）
-2. 在相应类别目录下创建新技能实现
-3. 确保新技能实现 `Skill` 接口定义的方法
-4. 在主应用初始化时通过 SkillManager 注册新技能
+1. 在 `backend/skills/bundled/` 下创建新目录，例如 `github-pr-review/`
+2. 在目录中创建 `SKILL.md`
+3. 在 `SKILL.md` 顶部使用 YAML frontmatter 描述 `name`、`description`、`version`
+4. 如有需要，增加 `references/`、`templates/`、`scripts/`、`assets/`
 
-## 技能架构
+## 运行时使用方式
 
-技能系统遵循以下架构模式：
-DigitalAssistant -> Agent -> Skill -> Tool
+运行时分两步使用 skills：
 
-其中每个技能都实现了统一的接口，允许编排器根据事件需求灵活调用适当的技能。
+1. 先生成 skill summary/index 注入模型上下文
+2. 在需要时按名称读取 skill 正文
+
+## 设计边界
+
+- `skills` 负责知识、流程经验和约束说明
+- `tools` 负责最小执行动作
+- `toolruntime` 负责账户注入、审批、审计和执行
+
+当前主链：
+
+`Event -> Agent Runtime -> Skills Catalog -> Tool Registry -> Eino Agent -> Tool Runtime`

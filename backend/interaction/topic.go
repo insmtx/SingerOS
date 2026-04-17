@@ -10,4 +10,6 @@ const (
 	TopicGithubIssueComment = "interaction.github.issue_comment"
 	// TopicGithubPullRequest GitHub Pull Request 事件主题
 	TopicGithubPullRequest = "interaction.github.pull_request"
+	// TopicGithubPush GitHub Push 提交事件主题
+	TopicGithubPush = "interaction.github.push"
 )

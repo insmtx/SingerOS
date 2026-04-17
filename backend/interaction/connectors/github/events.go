@@ -1,6 +1,8 @@
 package github
 
 import (
+	"encoding/json"
+
 	"github.com/google/go-github/v78/github"
 
 	"github.com/insmtx/SingerOS/backend/interaction"
@@ -13,6 +15,8 @@ func (c *Connector) convertEvent(eventType string, event any) *interaction.Event
 		return c.convertIssueComment(event.(*github.IssueCommentEvent))
 	case "pull_request":
 		return c.convertPullRequest(event.(*github.PullRequestEvent))
+	case "push":
+		return c.convertPush(event.(*github.PushEvent))
 	default:
 		return nil
 	}
@@ -20,33 +24,90 @@ func (c *Connector) convertEvent(eventType string, event any) *interaction.Event
 
 // convertIssueComment converts GitHub IssueCommentEvent to SingerOS Event.
 func (c *Connector) convertIssueComment(event *github.IssueCommentEvent) *interaction.Event {
+	payload := rawPayloadMap(event)
+	actor := event.GetSender().GetLogin()
+	if actor == "" {
+		actor = event.GetComment().GetUser().GetLogin()
+	}
 	return &interaction.Event{
 		Channel:    c.ChannelCode(),
 		EventType:  EventTypeIssueComment,
-		Actor:      event.GetComment().GetUser().GetLogin(),
+		Actor:      actor,
 		Repository: event.GetRepo().GetFullName(),
-		Payload: map[string]interface{}{
-			"issue_number": event.GetIssue().GetNumber(),
-			"comment":      event.GetComment().GetBody(),
-			"comment_id":   event.GetComment().GetID(),
+		Context: map[string]interface{}{
+			"provider":     "github",
+			"action":       event.GetAction(),
+			"sender_login": event.GetSender().GetLogin(),
 		},
+		Payload: payload,
 	}
 }
 
 // convertPullRequest converts GitHub PullRequestEvent to SingerOS Event.
 func (c *Connector) convertPullRequest(event *github.PullRequestEvent) *interaction.Event {
+	if !isSupportedPullRequestAction(event.GetAction()) {
+		return nil
+	}
+
+	payload := rawPayloadMap(event)
 	return &interaction.Event{
 		Channel:    c.ChannelCode(),
 		EventType:  EventTypePullRequest,
 		Actor:      event.GetSender().GetLogin(),
 		Repository: event.GetRepo().GetFullName(),
-		Payload: map[string]interface{}{
-			"pr_number": event.GetPullRequest().GetNumber(),
-			"title":     event.GetPullRequest().GetTitle(),
-			"body":      event.GetPullRequest().GetBody(),
-			"action":    event.GetAction(),
-			"state":     event.GetPullRequest().GetState(),
-			"url":       event.GetPullRequest().GetHTMLURL(),
+		Context: map[string]interface{}{
+			"provider":     "github",
+			"action":       event.GetAction(),
+			"sender_login": event.GetSender().GetLogin(),
 		},
+		Payload: payload,
+	}
+}
+
+// convertPush converts GitHub PushEvent to SingerOS Event.
+func (c *Connector) convertPush(event *github.PushEvent) *interaction.Event {
+	payload := rawPayloadMap(event)
+	actor := event.GetSender().GetLogin()
+	if actor == "" {
+		actor = event.GetPusher().GetName()
+	}
+	return &interaction.Event{
+		Channel:    c.ChannelCode(),
+		EventType:  EventTypePush,
+		Actor:      actor,
+		Repository: event.GetRepo().GetFullName(),
+		Context: map[string]interface{}{
+			"provider":     "github",
+			"ref":          event.GetRef(),
+			"sender_login": event.GetSender().GetLogin(),
+		},
+		Payload: payload,
+	}
+}
+
+func rawPayloadMap(value interface{}) map[string]interface{} {
+	if value == nil {
+		return nil
+	}
+
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		return nil
+	}
+
+	return payload
+}
+
+func isSupportedPullRequestAction(action string) bool {
+	switch action {
+	case "opened", "reopened", "synchronize", "ready_for_review":
+		return true
+	default:
+		return false
 	}
 }

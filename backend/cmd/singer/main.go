@@ -11,23 +11,25 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/insmtx/SingerOS/backend/agent/react"
+	auth "github.com/insmtx/SingerOS/backend/auth"
+	authgithub "github.com/insmtx/SingerOS/backend/auth/providers/github"
 	"github.com/insmtx/SingerOS/backend/config"
 	"github.com/insmtx/SingerOS/backend/database"
 	"github.com/insmtx/SingerOS/backend/gateway/trace"
 	"github.com/insmtx/SingerOS/backend/interaction/eventbus/rabbitmq"
 	gateway "github.com/insmtx/SingerOS/backend/interaction/gateway"
-	"github.com/insmtx/SingerOS/backend/llm"
-	openai_llm "github.com/insmtx/SingerOS/backend/llm/openai"
 	orchestrator "github.com/insmtx/SingerOS/backend/orchestrator"
-	skills "github.com/insmtx/SingerOS/backend/skills"
-	code_review_skill "github.com/insmtx/SingerOS/backend/skills/tool_skills/code_review_skill"
-	echo_skill "github.com/insmtx/SingerOS/backend/skills/tool_skills/echo_skill"
+	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
+	agentruntime "github.com/insmtx/SingerOS/backend/runtime"
+	bundledskills "github.com/insmtx/SingerOS/backend/skills/bundled"
+	skillcatalog "github.com/insmtx/SingerOS/backend/skills/catalog"
+	"github.com/insmtx/SingerOS/backend/toolruntime"
+	"github.com/insmtx/SingerOS/backend/tools"
+	githubtools "github.com/insmtx/SingerOS/backend/tools/github"
 	"github.com/spf13/cobra"
 	"github.com/ygpkg/yg-go/apis/runtime/middleware"
 	ygconfig "github.com/ygpkg/yg-go/config"
@@ -65,62 +67,27 @@ var rootCmd = &cobra.Command{
 			return
 		}
 
-		// Initialize skill manager
-		skillManager := skills.NewSimpleSkillManager()
-
-		// Register echo skill
-		echoSkill := echo_skill.NewEchoSkill()
-		if err := skillManager.Register(echoSkill); err != nil {
-			logs.Fatalf("Failed to register echo skill: %v", err)
+		if cfg.LLM == nil || cfg.LLM.APIKey == "" {
+			logs.Fatalf("LLM configuration is required for Eino runtime")
 			return
 		}
 
-		// Register additional programming-related skills for ReAct agent
-		// - Code review skill
-		// - PR analysis skill
-		// - Documentation search skill
-		// This can happen via dynamic skill loading mechanism
+		authService := buildAuthService(cfg)
 
-		// Create and register the code review skill
-		codeReviewSkill := code_review_skill.NewCodeReviewSkill()
-		if err := skillManager.Register(codeReviewSkill); err != nil {
-			logs.Fatalf("Failed to register code review skill: %v", err)
+		runtimeConfig, err := buildRuntimeConfig(cfg, authService)
+		if err != nil {
+			logs.Fatalf("Failed to build runtime config: %v", err)
 			return
 		}
 
-		// Create and register the PR analysis skill
-		prAnalysisSkill := react.NewPRAnalysisSkill()
-		if err := skillManager.Register(prAnalysisSkill); err != nil {
-			logs.Fatalf("Failed to register PR analysis skill: %v", err)
+		runner, err := buildRuntimeRunner(context.Background(), cfg, runtimeConfig)
+		if err != nil {
+			logs.Fatalf("Failed to create agent runtime: %v", err)
 			return
 		}
 
-		// Initialize LLM provider
-		var llmProvider llm.Provider
-		if cfg.LLM != nil && cfg.LLM.APIKey != "" {
-			// Configure LLM provider based on config
-			switch cfg.LLM.Provider {
-			case "openai", "":
-				llmConfig := openai_llm.DefaultConfig(cfg.LLM.APIKey)
-				if cfg.LLM.BaseURL != "" {
-					llmConfig.BaseURL = cfg.LLM.BaseURL
-				}
-				if cfg.LLM.Model != "" {
-					// We can customize default model if needed
-				}
-				llmProvider = openai_llm.NewProvider(llmConfig)
-			default:
-				logs.Fatalf("Unsupported LLM provider: %s", cfg.LLM.Provider)
-				return
-			}
-		} else {
-			logs.Warnf("No LLM configuration provided, using mock provider for testing")
-			// Create a mock provider for testing/development purposes
-			llmProvider = &mockLLMProvider{}
-		}
-
-		// Create orchestrator to consume events with skill manager and LLM provider
-		orchestratorInstance := orchestrator.NewOrchestrator(publisher, skillManager, llmProvider)
+		// Create orchestrator to consume events through the runtime boundary.
+		orchestratorInstance := orchestrator.NewOrchestrator(publisher, runner)
 
 		// Initialize database if configuration is provided
 		var db *gorm.DB
@@ -149,7 +116,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Set up gateway with connectors
-		gateway.SetupRouter(r, *cfg, publisher, db)
+		gateway.SetupRouter(r, *cfg, publisher, db, authService)
 
 		// Create HTTP server
 		srv := &http.Server{
@@ -233,55 +200,86 @@ func loadConfig() (*config.Config, error) {
 	return &cfg, nil
 }
 
+func buildRuntimeConfig(cfg *config.Config, authService *auth.Service) (agentruntime.Config, error) {
+	catalog, err := skillcatalog.New(bundledskills.FS)
+	if err != nil {
+		return agentruntime.Config{}, fmt.Errorf("load bundled skills: %w", err)
+	}
+
+	logs.Infof("Loaded %d bundled skills for runtime", len(catalog.List()))
+
+	toolRegistry, toolExecRuntime, err := buildTooling(cfg, authService)
+	if err != nil {
+		return agentruntime.Config{}, err
+	}
+
+	return agentruntime.Config{
+		SkillsCatalog: catalog,
+		ToolRegistry:  toolRegistry,
+		ToolRuntime:   toolExecRuntime,
+	}, nil
+}
+
+func buildAuthService(cfg *config.Config) *auth.Service {
+	accountStore := auth.NewInMemoryStore()
+	accountResolver := auth.NewAccountResolver(accountStore)
+	authService := auth.NewService(accountStore, accountResolver)
+
+	if cfg != nil && cfg.Github != nil {
+		authService.RegisterProvider(authgithub.NewOAuthProvider(*cfg.Github))
+	}
+
+	return authService
+}
+
+func buildTooling(cfg *config.Config, authService *auth.Service) (*tools.Registry, *toolruntime.Runtime, error) {
+	registry := tools.NewRegistry()
+
+	var githubFactory *githubprovider.ClientFactory
+	if cfg != nil && cfg.Github != nil {
+		githubFactory = githubprovider.NewClientFactory(*cfg.Github, authService)
+		if err := registry.Register(githubtools.NewAccountInfoTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github account info tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewPullRequestMetadataTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github pr metadata tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewPullRequestFilesTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github pr files tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewRepositoryFileTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github repository file tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewCompareCommitsTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github compare commits tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewPullRequestReviewPublishTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github pr review publish tool: %w", err)
+		}
+	}
+
+	logs.Infof("Loaded %d tools for runtime", len(registry.ListInfos()))
+
+	return registry, toolruntime.New(registry, githubFactory), nil
+}
+
+func buildRuntimeRunner(ctx context.Context, cfg *config.Config, runtimeConfig agentruntime.Config) (agentruntime.Runner, error) {
+	if cfg == nil || cfg.LLM == nil || cfg.LLM.APIKey == "" {
+		return nil, fmt.Errorf("llm config is required")
+	}
+
+	switch cfg.LLM.Provider {
+	case "", "openai":
+		logs.Info("Using Eino runtime runner")
+		return agentruntime.NewEinoRunner(ctx, cfg.LLM, runtimeConfig)
+	default:
+		return nil, fmt.Errorf("unsupported Eino chat model provider: %s", cfg.LLM.Provider)
+	}
+}
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		logs.Errorf("Error executing command: %v", err)
 		os.Exit(1)
 	}
-}
-
-// Mock LLM provider for development/testing when no API key is provided
-type mockLLMProvider struct{}
-
-func (m *mockLLMProvider) Name() string { return "mock" }
-func (m *mockLLMProvider) Generate(ctx context.Context, req *llm.GenerateRequest) (*llm.GenerateResponse, error) {
-	responseContent := "This is a mock response for development/testing. Actual LLM response would appear here."
-	if len(req.Messages) > 0 {
-		// Simple example of appending message content to simulate a response
-		lastMessage := req.Messages[len(req.Messages)-1]
-		responseContent = fmt.Sprintf("Mock processing of: %s", lastMessage.Content)
-	}
-
-	return &llm.GenerateResponse{
-		Content: responseContent,
-		Usage: llm.TokenUsage{
-			PromptTokens:     10,
-			CompletionTokens: 20,
-			TotalTokens:      30,
-		},
-		FinishReason: "stop",
-	}, nil
-}
-
-func (m *mockLLMProvider) GenerateStream(ctx context.Context, req *llm.GenerateRequest) (<-chan llm.StreamChunk, error) {
-	ch := make(chan llm.StreamChunk, 1)
-
-	// Send a mock response
-	go func() {
-		defer close(ch)
-		ch <- llm.StreamChunk{
-			Content: "This is a mock streaming response from development/testing.",
-			Done:    true,
-		}
-	}()
-
-	return ch, nil
-}
-
-func (m *mockLLMProvider) CountTokens(text string) int {
-	return len(strings.Fields(text)) // Simple estimation
-}
-
-func (m *mockLLMProvider) Models() []string {
-	return []string{"mock-model"}
 }

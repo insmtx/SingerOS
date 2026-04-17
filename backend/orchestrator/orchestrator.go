@@ -9,11 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/insmtx/SingerOS/backend/agent/react"
 	"github.com/insmtx/SingerOS/backend/interaction"
 	"github.com/insmtx/SingerOS/backend/interaction/eventbus"
-	"github.com/insmtx/SingerOS/backend/llm"
-	skills "github.com/insmtx/SingerOS/backend/skills"
+	agentruntime "github.com/insmtx/SingerOS/backend/runtime"
 	"github.com/ygpkg/yg-go/logs"
 )
 
@@ -22,22 +20,18 @@ type EventHandlerFunc func(ctx context.Context, event *interaction.Event) error
 
 // Orchestrator 是事件编排器，负责事件的订阅、分发和处理
 type Orchestrator struct {
-	subscriber        eventbus.Subscriber         // 事件订阅者
-	skillManager      skills.SkillManager         // 技能管理器
-	agentOrchestrator *react.AgentOrchestrator    // ReAct 代理编排器
-	handlers          map[string]EventHandlerFunc // 事件主题到处理器的映射
+	subscriber eventbus.Subscriber         // 事件订阅者
+	runner     agentruntime.Runner         // 统一任务运行器
+	handlers   map[string]EventHandlerFunc // 事件主题到处理器的映射
 }
 
 // NewOrchestrator 创建一个新的事件编排器实例
-func NewOrchestrator(subscriber eventbus.Subscriber, skillManager skills.SkillManager, llmProvider llm.Provider) *Orchestrator {
+func NewOrchestrator(subscriber eventbus.Subscriber, runner agentruntime.Runner) *Orchestrator {
 	orchestrator := &Orchestrator{
-		subscriber:   subscriber,
-		skillManager: skillManager,
-		handlers:     make(map[string]EventHandlerFunc),
+		subscriber: subscriber,
+		runner:     runner,
+		handlers:   make(map[string]EventHandlerFunc),
 	}
-
-	// 初始化ReAct Agent编排器
-	orchestrator.agentOrchestrator = react.NewAgentOrchestrator(llmProvider, skillManager)
 
 	// 注册默认处理器
 	orchestrator.registerDefaultHandlers()
@@ -52,6 +46,9 @@ func (o *Orchestrator) registerDefaultHandlers() {
 
 	// 处理GitHub pull_request事件
 	o.handlers[interaction.TopicGithubPullRequest] = o.handlePullRequest
+
+	// 处理GitHub push事件
+	o.handlers[interaction.TopicGithubPush] = o.handlePush
 }
 
 // Start 启动编排器，开始订阅和处理事件
@@ -91,18 +88,23 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 
 // handleIssueComment 处理 GitHub Issue 评论事件
 func (o *Orchestrator) handleIssueComment(ctx context.Context, event *interaction.Event) error {
-	logs.InfoContextf(ctx, "Processing GitHub issue comment event with ReAct agent: %+v", event)
+	logs.InfoContextf(ctx, "Processing GitHub issue comment event with agent runtime: %+v", event)
 
-	// 使用 ReAct Agent 处理事件
-	return o.agentOrchestrator.HandleEventAdvanced(ctx, event)
+	return o.runner.HandleEvent(ctx, event)
 }
 
 // handlePullRequest 处理 GitHub Pull Request 事件
 func (o *Orchestrator) handlePullRequest(ctx context.Context, event *interaction.Event) error {
-	logs.InfoContextf(ctx, "Processing GitHub pull request event with ReAct agent: %+v", event)
+	logs.InfoContextf(ctx, "Processing GitHub pull request event with agent runtime: %+v", event)
 
-	// 使用 ReAct Agent 处理 PR 事件
-	return o.agentOrchestrator.HandleEventAdvanced(ctx, event)
+	return o.runner.HandleEvent(ctx, event)
+}
+
+// handlePush 处理 GitHub Push 提交事件
+func (o *Orchestrator) handlePush(ctx context.Context, event *interaction.Event) error {
+	logs.InfoContextf(ctx, "Processing GitHub push event with agent runtime: %+v", event)
+
+	return o.runner.HandleEvent(ctx, event)
 }
 
 // RegisterHandler 允许外部注册新的事件处理器

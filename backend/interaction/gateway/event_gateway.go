@@ -6,6 +6,7 @@ package gateway
 
 import (
 	"github.com/gin-gonic/gin"
+	auth "github.com/insmtx/SingerOS/backend/auth"
 	"github.com/insmtx/SingerOS/backend/clientmgr"
 	"github.com/insmtx/SingerOS/backend/config"
 	"github.com/insmtx/SingerOS/backend/interaction"
@@ -21,13 +22,13 @@ import (
 //
 // 根据配置初始化并注册 GitHub、GitLab 等渠道连接器，
 // 同时设置客户端 WebSocket 连接器，并将所有连接器的路由注册到 HTTP 服务器。
-func SetupRouter(r gin.IRouter, cfg config.Config, publisher eventbus.Publisher, db *gorm.DB) {
+func SetupRouter(r gin.IRouter, cfg config.Config, publisher eventbus.Publisher, db *gorm.DB, authService *auth.Service) {
 	registry := interaction.NewRegistry()
 
 	// Check if GitHub configuration is provided and enabled
 	if cfg.Github != nil {
 		logs.Info("Setting up GitHub connector")
-		githubConnector := github.NewConnector(*cfg.Github, publisher, db)
+		githubConnector := github.NewConnector(*cfg.Github, publisher, db, authService)
 		registry.Register(githubConnector)
 		logs.Info("GitHub connector registered successfully")
 	} else {

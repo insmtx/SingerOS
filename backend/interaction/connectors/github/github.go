@@ -6,19 +6,15 @@ package github
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-github/v78/github"
 	"github.com/ygpkg/yg-go/logs"
 	"gorm.io/gorm"
 
+	auth "github.com/insmtx/SingerOS/backend/auth"
 	"github.com/insmtx/SingerOS/backend/config"
 	"github.com/insmtx/SingerOS/backend/interaction/connectors"
 	"github.com/insmtx/SingerOS/backend/interaction/eventbus"
@@ -26,11 +22,7 @@ import (
 )
 
 const (
-	githubAuthURL    = "https://github.com/login/oauth/authorize"
-	githubTokenURL   = "https://github.com/login/oauth/access_token"
 	githubAPIBaseURL = "https://api.github.com"
-	defaultScope     = "user:email"
-	stateLength      = 16
 )
 
 var _ connectors.Connector = (*Connector)(nil)
@@ -41,6 +33,7 @@ type Connector struct {
 	client    *github.Client
 	publisher eventbus.Publisher
 	db        *gorm.DB
+	authSvc   *auth.Service
 }
 
 // ChannelCode returns the channel identifier for GitHub.
@@ -56,7 +49,7 @@ func (c *Connector) RegisterRoutes(r gin.IRouter) {
 }
 
 // NewConnector creates a new GitHub connector instance.
-func NewConnector(cfg config.GithubAppConfig, publisher eventbus.Publisher, db *gorm.DB) *Connector {
+func NewConnector(cfg config.GithubAppConfig, publisher eventbus.Publisher, db *gorm.DB, authSvc *auth.Service) *Connector {
 	logs.Infof("Creating new GitHub connector for app ID: %d", cfg.AppID)
 
 	var githubClient *github.Client
@@ -71,150 +64,107 @@ func NewConnector(cfg config.GithubAppConfig, publisher eventbus.Publisher, db *
 		client:    githubClient,
 		publisher: publisher,
 		db:        db,
+		authSvc:   authSvc,
 	}
 }
 
 // oAuthRedirect initiates the GitHub OAuth flow.
 func (c *Connector) oAuthRedirect(ctx *gin.Context) {
-	state, err := generateState()
+	if c.authSvc == nil {
+		ctx.JSON(http.StatusServiceUnavailable, gin.H{"error": "authorization service unavailable"})
+		return
+	}
+	userID := ctx.Query("user_id")
+	if userID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "user_id parameter missing"})
+		return
+	}
+
+	redirectURL, err := c.authSvc.StartAuthorization(ctx.Request.Context(), &auth.StartAuthorizationRequest{
+		UserID:      userID,
+		Provider:    auth.ProviderGitHub,
+		RedirectURI: ctx.Query("redirect_uri"),
+	})
 	if err != nil {
-		logs.ErrorContextf(ctx, "Failed to generate state: %v", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		logs.ErrorContextf(ctx, "Failed to start GitHub authorization: %v", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if c.cfg.ClientID == "" {
-		logs.ErrorContext(ctx, "Missing GitHub OAuth Client ID")
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "GitHub OAuth not properly configured"})
-		return
-	}
-
-	redirectURL := fmt.Sprintf(
-		"%s?client_id=%s&state=%s&scope=%s&redirect_uri=%s",
-		githubAuthURL,
-		c.cfg.ClientID,
-		state,
-		defaultScope,
-		"", // Redirect URI should be configured
-	)
 	ctx.Redirect(http.StatusTemporaryRedirect, redirectURL)
 }
 
 // oAuthCallback handles the GitHub OAuth callback.
 func (c *Connector) oAuthCallback(ctx *gin.Context) {
+	if c.authSvc == nil {
+		ctx.JSON(http.StatusServiceUnavailable, gin.H{"error": "authorization service unavailable"})
+		return
+	}
+
 	code := ctx.Query("code")
 	if code == "" {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "code parameter missing"})
 		return
 	}
 
-	if c.cfg.ClientID == "" || c.cfg.ClientSecret == "" {
-		logs.ErrorContext(ctx, "Missing GitHub OAuth client credentials")
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "GitHub OAuth not properly configured"})
+	state := ctx.Query("state")
+	if state == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "state parameter missing"})
 		return
 	}
 
-	accessToken, err := c.exchangeCodeForToken(code)
+	result, err := c.authSvc.HandleAuthorizationCallback(ctx.Request.Context(), &auth.AuthorizationCallbackRequest{
+		Provider: auth.ProviderGitHub,
+		State:    state,
+		Code:     code,
+	})
 	if err != nil {
-		logs.ErrorContextf(ctx, "Failed to exchange code for token: %v", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get access token"})
+		logs.ErrorContextf(ctx, "Failed to complete GitHub authorization: %v", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	ghClient := github.NewTokenClient(context.Background(), accessToken)
-	user, _, err := ghClient.Users.Get(context.Background(), "")
-	if err != nil {
-		logs.ErrorContextf(ctx, "Failed to get user profile: %v", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user profile"})
-		return
-	}
-
-	response := c.buildOAuthResponse(user, accessToken)
-	if err := c.saveUserIfNeeded(ctx, user, response); err != nil {
+	response := c.buildOAuthResponse(result.Account)
+	if err := c.saveUserIfNeeded(ctx, result.Account, response); err != nil {
 		logs.ErrorContextf(ctx, "Failed to save user: %v", err)
 	}
 
 	ctx.JSON(http.StatusOK, response)
 }
 
-// exchangeCodeForToken exchanges OAuth code for access token.
-func (c *Connector) exchangeCodeForToken(code string) (string, error) {
-	requestData := fmt.Sprintf(
-		"code=%s&client_id=%s&client_secret=%s&redirect_uri=%s",
-		code,
-		c.cfg.ClientID,
-		c.cfg.ClientSecret,
-		"",
-	)
-
-	req, err := http.NewRequest("POST", githubTokenURL, strings.NewReader(requestData))
-	if err != nil {
-		return "", fmt.Errorf("create token request: %w", err)
-	}
-
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("execute token request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("read token response: %w", err)
-	}
-
-	var tokenResp struct {
-		AccessToken string `json:"access_token"`
-		TokenType   string `json:"token_type"`
-		Scope       string `json:"scope"`
-	}
-
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return "", fmt.Errorf("parse token response: %w", err)
-	}
-
-	if tokenResp.AccessToken == "" {
-		return "", fmt.Errorf("access token not found in response: %s", string(body))
-	}
-
-	return tokenResp.AccessToken, nil
-}
-
 // buildOAuthResponse constructs the OAuth response.
-func (c *Connector) buildOAuthResponse(user *github.User, accessToken string) gin.H {
+func (c *Connector) buildOAuthResponse(account *auth.AuthorizedAccount) gin.H {
+	user := gin.H{
+		"github_id":    account.ExternalAccountID,
+		"github_login": account.Metadata["github_login"],
+		"name":         account.Metadata["name"],
+		"email":        account.Metadata["email"],
+	}
+
 	return gin.H{
-		"user": gin.H{
-			"github_id":    user.GetID(),
-			"github_login": user.GetLogin(),
-			"name":         user.GetName(),
-			"email":        user.GetEmail(),
-		},
-		"access_token": accessToken,
+		"user":    user,
+		"account": account,
 	}
 }
 
 // saveUserIfNeeded saves user to database if available.
-func (c *Connector) saveUserIfNeeded(ctx context.Context, user *github.User, response gin.H) error {
+func (c *Connector) saveUserIfNeeded(ctx context.Context, account *auth.AuthorizedAccount, response gin.H) error {
 	if c.db == nil {
 		logs.WarnContext(ctx, "Database not available, user info will not be saved to DB")
 		return nil
 	}
 
+	githubID, err := parseGithubID(account.ExternalAccountID)
+	if err != nil {
+		return err
+	}
+
 	newUser := &types.User{
-		GithubID:    user.GetID(),
-		GithubLogin: user.GetLogin(),
-		Name:        user.GetName(),
-		Email:       user.GetEmail(),
-		AvatarURL:   user.GetAvatarURL(),
-		Bio:         user.GetBio(),
-		Company:     user.GetCompany(),
-		Location:    user.GetLocation(),
-		PublicRepos: user.GetPublicRepos(),
-		Followers:   user.GetFollowers(),
+		GithubID:    githubID,
+		GithubLogin: account.Metadata["github_login"],
+		Name:        account.Metadata["name"],
+		Email:       account.Metadata["email"],
+		AvatarURL:   account.Metadata["avatar_url"],
 	}
 
 	result := c.db.Where(types.User{GithubID: newUser.GithubID}).FirstOrCreate(newUser)
@@ -226,11 +176,11 @@ func (c *Connector) saveUserIfNeeded(ctx context.Context, user *github.User, res
 	return nil
 }
 
-// generateState creates a random state string for OAuth.
-func generateState() (string, error) {
-	b := make([]byte, stateLength)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generate random bytes: %w", err)
+func parseGithubID(externalAccountID string) (int64, error) {
+	var githubID int64
+	_, err := fmt.Sscanf(externalAccountID, "%d", &githubID)
+	if err != nil {
+		return 0, fmt.Errorf("parse github id: %w", err)
 	}
-	return hex.EncodeToString(b), nil
+	return githubID, nil
 }
