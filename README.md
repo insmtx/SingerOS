@@ -207,8 +207,6 @@ Complete documentation is available in the `docs/` directory:
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | AI OS architecture design (v2 - Three-Plane Model) |
 | [DESIGN_PHILOSOPHY.md](docs/DESIGN_PHILOSOPHY.md) | Core design philosophy and principles |
 | [PRD.md](docs/PRD.md) | Product requirements (Employee View/AI Workbench) |
-| [TODO.md](docs/TODO.md) | Backend development roadmap (2-week MVP plan) |
-| [TODO_v1.md](docs/TODO_v1.md) | Detailed backend development tasks |
 | [GITHUB_AUTH_SETUP.md](docs/GITHUB_AUTH_SETUP.md) | GitHub OAuth integration guide |
 | [GITHUB_WEBHOOK_TROUBLESHOOTING.md](docs/GITHUB_WEBHOOK_TROUBLESHOOTING.md) | GitHub webhook troubleshooting |
 | [PR_EVENT_FLOW.md](docs/PR_EVENT_FLOW.md) | GitHub PR event processing verification |

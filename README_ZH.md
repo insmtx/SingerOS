@@ -232,8 +232,6 @@ SingerOS 致力于在企业人工智能系统中体现同样的特质。
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | AI OS 架构设计（v2 - 三平面模型） |
 | [DESIGN_PHILOSOPHY.md](docs/DESIGN_PHILOSOPHY.md) | 核心设计哲学和原则 |
 | [PRD.md](docs/PRD.md) | 产品需求文档（员工视图/AI工作台） |
-| [TODO.md](docs/TODO.md) | 后端开发路线图（2周 MVP 计划） |
-| [TODO_v1.md](docs/TODO_v1.md) | 详细的后端开发任务 |
 | [GITHUB_AUTH_SETUP.md](docs/GITHUB_AUTH_SETUP.md) | GitHub OAuth 集成指南 |
 | [GITHUB_WEBHOOK_TROUBLESHOOTING.md](docs/GITHUB_WEBHOOK_TROUBLESHOOTING.md) | GitHub Webhook 故障排除 |
 | [PR_EVENT_FLOW.md](docs/PR_EVENT_FLOW.md) | GitHub PR 事件处理验证 |
