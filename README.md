@@ -52,61 +52,17 @@ Compared to traditional workflow engines such as DeerFlow:
 
 ---
 
-## 🏗 Architecture Overview
-
-SingerOS is built with strict separation between:
-
-* **Control Plane** (governance & management)
-* **Data Plane** (runtime execution)
-* **Infrastructure Layer**
-
-### Core Components
-
-#### 🐾 Agent Runtime
-
-* Stateful execution
-* Planning / Acting / Reflecting loop
-* Sub-agent collaboration
-* Recoverable execution
-
-#### 🔧 Skill System
-
-* Stateless capability units
-* Versioned & governable
-* Executed via Skill Proxy
-* Rate-limited & auditable
-
-#### 🧩 Workflow Engine
-
-* DAG-based execution
-* Version-controlled workflows
-* Parallel & conditional nodes
-* Human-in-the-loop support
-
-#### 🧠 Model Router
-
-* Multi-provider abstraction
-* Cost-aware routing
-* Latency-aware fallback
-* Token quota control
-
-#### 🗂 Memory System
-
-* Short-term session memory
-* Long-term semantic memory
-* Structured state persistence
-
----
-
 ## 🎯 Design Principles
 
-SingerOS enforces the following architectural invariants:
+SingerOS enforces strict architectural invariants to ensure governance and reliability:
 
-1. Agent never directly calls external systems.
-2. Skill never performs orchestration logic.
-3. Control plane never executes runtime logic.
-4. All workflow execution must be persisted.
-5. All model usage must be measurable and governable.
+1. **Agent never directly calls external systems** - All external interactions go through Tools
+2. **Skill never performs orchestration logic** - Skills compose Tools, not workflows
+3. **Control plane never executes runtime logic** - Clear separation of concerns
+4. **All workflow execution must be persisted** - Replayable and auditable
+5. **All model usage must be measurable** - Cost-aware and governable
+
+For detailed design philosophy, see [Design Philosophy](docs/DESIGN_PHILOSOPHY.md).
 
 ---
 
@@ -144,52 +100,22 @@ SingerOS is designed for:
 
 ---
 
-## 📦 Core Modules
+## 🔄 Execution Flow
 
-```text
-singeros/
-├── control-plane/
-│   ├── agent-registry
-│   ├── skill-registry
-│   ├── workflow-store
-│   ├── tenant-manager
-│   └── policy-engine
-│
-├── data-plane/
-│   ├── orchestrator
-│   ├── agent-runtime
-│   ├── skill-proxy
-│   ├── model-router
-│   ├── memory-engine
-│   └── scheduler
-│
-├── plugins/
-│   ├── skills/
-│   ├── agents/
-│   ├── models/
-│   └── memory-backends/
-│
-└── infrastructure/
+SingerOS follows a unified event-driven execution model:
+
 ```
-
----
-
-## 🔄 Execution Lifecycle
-
-1. Task submitted
-2. Execution context created
-3. Workflow resolved
-4. Agent initialized
-5. Steps executed
-6. State persisted
-7. Completion recorded
-8. Metrics & audit logged
+User → Event Gateway → EventBus → Control Plane → Orchestrator 
+→ Runtime Manager → Agent/Edge Runtime → Skill → Tool → EventBus → Client
+```
 
 All execution is:
 
-* Replayable
-* Observable
-* Auditable
+* **Replayable** - Complete execution history recorded
+* **Observable** - Full链路 tracing and monitoring
+* **Auditable** - Comprehensive audit logs
+
+For detailed architecture, see [Architecture Documentation](docs/ARCHITECTURE.md).
 
 ---
 
@@ -278,7 +204,9 @@ Complete documentation is available in the `docs/` directory:
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | AI OS architecture design |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | AI OS architecture design (v2 - Three-Plane Model) |
+| [ARCHITECTURE_V2_MIGRATION.md](docs/ARCHITECTURE_V2_MIGRATION.md) | Guide for migrating from v1 to v2 architecture |
+| [DESIGN_PHILOSOPHY.md](docs/DESIGN_PHILOSOPHY.md) | Core design philosophy and principles |
 | [PRD.md](docs/PRD.md) | Product requirements (Employee View/AI Workbench) |
 | [TODO.md](docs/TODO.md) | Backend development roadmap (2-week MVP plan) |
 | [TODO_v1.md](docs/TODO_v1.md) | Detailed backend development tasks |
