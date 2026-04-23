@@ -16,7 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	auth "github.com/insmtx/SingerOS/backend/auth"
-	authgithub "github.com/insmtx/SingerOS/backend/auth/providers/github"
+	github "github.com/insmtx/SingerOS/backend/pkg/providers/github"
 	"github.com/insmtx/SingerOS/backend/config"
 	"github.com/insmtx/SingerOS/backend/database"
 	agentruntime "github.com/insmtx/SingerOS/backend/internal/agent"
@@ -214,7 +214,7 @@ func buildAuthService(cfg *config.Config) *auth.Service {
 	authService := auth.NewService(accountStore, accountResolver)
 
 	if cfg != nil && cfg.Github != nil {
-		authService.RegisterProvider(authgithub.NewOAuthProvider(*cfg.Github))
+		authService.RegisterProvider(github.NewOAuthProvider(*cfg.Github))
 	}
 
 	return authService
