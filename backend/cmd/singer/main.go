@@ -22,7 +22,8 @@ import (
 	"github.com/insmtx/SingerOS/backend/gateway/trace"
 	"github.com/insmtx/SingerOS/backend/interaction/eventbus/rabbitmq"
 	gateway "github.com/insmtx/SingerOS/backend/interaction/gateway"
-	orchestrator "github.com/insmtx/SingerOS/backend/orchestrator"
+	"github.com/insmtx/SingerOS/backend/internal/eventengine"
+	"github.com/insmtx/SingerOS/backend/internal/execution"
 	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
 	agentruntime "github.com/insmtx/SingerOS/backend/runtime"
 	bundledskills "github.com/insmtx/SingerOS/backend/skills/bundled"
@@ -74,20 +75,11 @@ var rootCmd = &cobra.Command{
 
 		authService := buildAuthService(cfg)
 
-		runtimeConfig, err := buildRuntimeConfig(cfg, authService)
-		if err != nil {
-			logs.Fatalf("Failed to build runtime config: %v", err)
-			return
-		}
+		// Create Execution Engine
+		executionEngine := execution.NewExecutionEngine()
 
-		runner, err := buildRuntimeRunner(context.Background(), cfg, runtimeConfig)
-		if err != nil {
-			logs.Fatalf("Failed to create agent runtime: %v", err)
-			return
-		}
-
-		// Create orchestrator to consume events through the runtime boundary.
-		orchestratorInstance := orchestrator.NewOrchestrator(publisher, runner)
+		// Create Event Engine with Execution Engine
+		eventEngine := eventengine.NewEventEngine(publisher, executionEngine)
 
 		// Initialize database if configuration is provided
 		var db *gorm.DB
@@ -127,12 +119,12 @@ var rootCmd = &cobra.Command{
 		logs.Info("Starting SingerOS backend service...")
 		logs.Infof("Listening on %s", httpAddr)
 
-		// Start orchestrator to consume events
+		// Start Event Engine to consume events
 		ctx := context.Background()
-		if err := orchestratorInstance.Start(ctx); err != nil {
-			logs.Errorf("Failed to start orchestrator: %v", err)
+		if err := eventEngine.Start(ctx); err != nil {
+			logs.Errorf("Failed to start Event Engine: %v", err)
 		} else {
-			logs.Info("Orchestrator started successfully")
+			logs.Info("Event Engine started successfully")
 		}
 
 		// Start the server in a goroutine
