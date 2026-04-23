@@ -42,6 +42,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /build/singer /singer
+COPY --from=builder /build/backend/skills /app/backend/skills
+
+WORKDIR /app
 
 EXPOSE 8080
 

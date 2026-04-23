@@ -23,13 +23,9 @@ import (
 	"github.com/insmtx/SingerOS/backend/interaction/eventbus/rabbitmq"
 	gateway "github.com/insmtx/SingerOS/backend/interaction/gateway"
 	orchestrator "github.com/insmtx/SingerOS/backend/orchestrator"
-	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
 	agentruntime "github.com/insmtx/SingerOS/backend/runtime"
-	bundledskills "github.com/insmtx/SingerOS/backend/skills/bundled"
-	skillcatalog "github.com/insmtx/SingerOS/backend/skills/catalog"
-	"github.com/insmtx/SingerOS/backend/toolruntime"
 	"github.com/insmtx/SingerOS/backend/tools"
-	githubtools "github.com/insmtx/SingerOS/backend/tools/github"
+	skilltools "github.com/insmtx/SingerOS/backend/tools/skill"
 	"github.com/spf13/cobra"
 	"github.com/ygpkg/yg-go/apis/runtime/middleware"
 	ygconfig "github.com/ygpkg/yg-go/config"
@@ -74,7 +70,7 @@ var rootCmd = &cobra.Command{
 
 		authService := buildAuthService(cfg)
 
-		runtimeConfig, err := buildRuntimeConfig(cfg, authService)
+		runtimeConfig, err := buildRuntimeConfig()
 		if err != nil {
 			logs.Fatalf("Failed to build runtime config: %v", err)
 			return
@@ -200,15 +196,15 @@ func loadConfig() (*config.Config, error) {
 	return &cfg, nil
 }
 
-func buildRuntimeConfig(cfg *config.Config, authService *auth.Service) (agentruntime.Config, error) {
-	catalog, err := skillcatalog.New(bundledskills.FS)
+func buildRuntimeConfig() (agentruntime.Config, error) {
+	catalog, skillDir, err := skilltools.LoadDefaultCatalog()
 	if err != nil {
-		return agentruntime.Config{}, fmt.Errorf("load bundled skills: %w", err)
+		return agentruntime.Config{}, fmt.Errorf("load skills: %w", err)
 	}
 
-	logs.Infof("Loaded %d bundled skills for runtime", len(catalog.List()))
+	logs.Infof("Loaded %d skills from %s for runtime", len(catalog.List()), skillDir)
 
-	toolRegistry, toolExecRuntime, err := buildTooling(cfg, authService)
+	toolRegistry, err := buildTooling(catalog)
 	if err != nil {
 		return agentruntime.Config{}, err
 	}
@@ -216,7 +212,6 @@ func buildRuntimeConfig(cfg *config.Config, authService *auth.Service) (agentrun
 	return agentruntime.Config{
 		SkillsCatalog: catalog,
 		ToolRegistry:  toolRegistry,
-		ToolRuntime:   toolExecRuntime,
 	}, nil
 }
 
@@ -232,35 +227,16 @@ func buildAuthService(cfg *config.Config) *auth.Service {
 	return authService
 }
 
-func buildTooling(cfg *config.Config, authService *auth.Service) (*tools.Registry, *toolruntime.Runtime, error) {
+func buildTooling(catalog *skilltools.Catalog) (*tools.Registry, error) {
 	registry := tools.NewRegistry()
 
-	var githubFactory *githubprovider.ClientFactory
-	if cfg != nil && cfg.Github != nil {
-		githubFactory = githubprovider.NewClientFactory(*cfg.Github, authService)
-		if err := registry.Register(githubtools.NewAccountInfoTool(nil)); err != nil {
-			return nil, nil, fmt.Errorf("register github account info tool: %w", err)
-		}
-		if err := registry.Register(githubtools.NewPullRequestMetadataTool(nil)); err != nil {
-			return nil, nil, fmt.Errorf("register github pr metadata tool: %w", err)
-		}
-		if err := registry.Register(githubtools.NewPullRequestFilesTool(nil)); err != nil {
-			return nil, nil, fmt.Errorf("register github pr files tool: %w", err)
-		}
-		if err := registry.Register(githubtools.NewRepositoryFileTool(nil)); err != nil {
-			return nil, nil, fmt.Errorf("register github repository file tool: %w", err)
-		}
-		if err := registry.Register(githubtools.NewCompareCommitsTool(nil)); err != nil {
-			return nil, nil, fmt.Errorf("register github compare commits tool: %w", err)
-		}
-		if err := registry.Register(githubtools.NewPullRequestReviewPublishTool(nil)); err != nil {
-			return nil, nil, fmt.Errorf("register github pr review publish tool: %w", err)
-		}
+	if err := skilltools.Register(registry, catalog); err != nil {
+		return nil, fmt.Errorf("register skill use tool: %w", err)
 	}
 
-	logs.Infof("Loaded %d tools for runtime", len(registry.ListInfos()))
+	logs.Infof("Loaded %d tools for runtime", len(registry.List()))
 
-	return registry, toolruntime.New(registry, githubFactory), nil
+	return registry, nil
 }
 
 func buildRuntimeRunner(ctx context.Context, cfg *config.Config, runtimeConfig agentruntime.Config) (agentruntime.Runner, error) {
@@ -270,8 +246,8 @@ func buildRuntimeRunner(ctx context.Context, cfg *config.Config, runtimeConfig a
 
 	switch cfg.LLM.Provider {
 	case "", "openai":
-		logs.Info("Using Eino runtime runner")
-		return agentruntime.NewEinoRunner(ctx, cfg.LLM, runtimeConfig)
+		logs.Info("Using SingerOS agent runtime")
+		return agentruntime.NewAgent(ctx, cfg.LLM, runtimeConfig)
 	default:
 		return nil, fmt.Errorf("unsupported Eino chat model provider: %s", cfg.LLM.Provider)
 	}

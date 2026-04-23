@@ -90,7 +90,7 @@
 
 ### ✅ PR Review Skill
 
-- ✅ 文件化技能定义 (`backend/skills/bundled/github-pr-review/SKILL.md`)
+- ✅ 文件化技能定义 (`backend/skills/github-pr-review/SKILL.md`)
 - ✅ 审查流程和规则定义
 - ✅ 工具依赖声明
 
@@ -246,10 +246,8 @@ backend/
 │   ├── registry.go          # 工具注册表
 │   └── github/              # GitHub 工具集
 ├── toolruntime/             # Tool 运行时
-├── skills/                  # Skills 系统
-│   ├── catalog/             # 技能目录
-│   └── bundled/             # 内置技能
-│       └── github-pr-review/# PR Review 技能
+├── skills/                  # 技能目录
+│   └── github-pr-review/    # PR Review 技能
 ├── auth/                    # 认证授权系统
 │   ├── providers/github/    # GitHub OAuth
 │   └── service.go           # Auth 服务
