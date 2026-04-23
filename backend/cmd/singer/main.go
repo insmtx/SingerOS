@@ -18,12 +18,12 @@ import (
 	auth "github.com/insmtx/SingerOS/backend/auth"
 	authgithub "github.com/insmtx/SingerOS/backend/auth/providers/github"
 	"github.com/insmtx/SingerOS/backend/config"
-	"github.com/insmtx/SingerOS/backend/database"
-	"github.com/insmtx/SingerOS/backend/gateway/trace"
-	"github.com/insmtx/SingerOS/backend/interaction/eventbus/rabbitmq"
-	gateway "github.com/insmtx/SingerOS/backend/interaction/gateway"
-	orchestrator "github.com/insmtx/SingerOS/backend/orchestrator"
-	agentruntime "github.com/insmtx/SingerOS/backend/runtime"
+	infradb "github.com/insmtx/SingerOS/backend/internal/infra/db"
+	"github.com/insmtx/SingerOS/backend/internal/service/trace"
+	"github.com/insmtx/SingerOS/backend/internal/infra/mq"
+	"github.com/insmtx/SingerOS/backend/internal/service"
+	"github.com/insmtx/SingerOS/backend/internal/eventengine"
+	"github.com/insmtx/SingerOS/backend/internal/agent"
 	"github.com/insmtx/SingerOS/backend/tools"
 	skilltools "github.com/insmtx/SingerOS/backend/tools/skill"
 	"github.com/spf13/cobra"
@@ -57,7 +57,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		rmqCfg := ygconfig.RabbitMQConfig{URL: rmqUrl}
-		publisher, _, err := rabbitmq.NewPublisher(rmqCfg)
+		publisher, _, err := mq.NewPublisher(rmqCfg)
 		if err != nil {
 			logs.Fatalf("Failed to create event publisher: %v", err)
 			return
@@ -83,13 +83,13 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Create orchestrator to consume events through the runtime boundary.
-		orchestratorInstance := orchestrator.NewOrchestrator(publisher, runner)
+		orchestratorInstance := eventengine.NewOrchestrator(publisher, runner)
 
 		// Initialize database if configuration is provided
 		var db *gorm.DB
 		if cfg.Database != nil && cfg.Database.URL != "" {
 			var err error
-			db, err = database.InitDB(*cfg.Database)
+			db, err = infradb.InitDB(*cfg.Database)
 			if err != nil {
 				logs.Fatalf("Failed to initialize database: %v", err)
 				return
@@ -112,7 +112,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Set up gateway with connectors
-		gateway.SetupRouter(r, *cfg, publisher, db, authService)
+		service.SetupRouter(r, *cfg, publisher, db, authService)
 
 		// Create HTTP server
 		srv := &http.Server{
@@ -196,20 +196,20 @@ func loadConfig() (*config.Config, error) {
 	return &cfg, nil
 }
 
-func buildRuntimeConfig() (agentruntime.Config, error) {
+func buildRuntimeConfig() (	agent.Config, error) {
 	catalog, skillDir, err := skilltools.LoadDefaultCatalog()
 	if err != nil {
-		return agentruntime.Config{}, fmt.Errorf("load skills: %w", err)
+		return 	agent.Config{}, fmt.Errorf("load skills: %w", err)
 	}
 
 	logs.Infof("Loaded %d skills from %s for runtime", len(catalog.List()), skillDir)
 
 	toolRegistry, err := buildTooling(catalog)
 	if err != nil {
-		return agentruntime.Config{}, err
+		return 	agent.Config{}, err
 	}
 
-	return agentruntime.Config{
+	return 	agent.Config{
 		SkillsCatalog: catalog,
 		ToolRegistry:  toolRegistry,
 	}, nil
@@ -239,7 +239,7 @@ func buildTooling(catalog *skilltools.Catalog) (*tools.Registry, error) {
 	return registry, nil
 }
 
-func buildRuntimeRunner(ctx context.Context, cfg *config.Config, runtimeConfig agentruntime.Config) (agentruntime.Runner, error) {
+func buildRuntimeRunner(ctx context.Context, cfg *config.Config, runtimeConfig 	agent.Config) (	agent.Runner, error) {
 	if cfg == nil || cfg.LLM == nil || cfg.LLM.APIKey == "" {
 		return nil, fmt.Errorf("llm config is required")
 	}
@@ -247,7 +247,7 @@ func buildRuntimeRunner(ctx context.Context, cfg *config.Config, runtimeConfig a
 	switch cfg.LLM.Provider {
 	case "", "openai":
 		logs.Info("Using SingerOS agent runtime")
-		return agentruntime.NewAgent(ctx, cfg.LLM, runtimeConfig)
+		return 	agent.NewAgent(ctx, cfg.LLM, runtimeConfig)
 	default:
 		return nil, fmt.Errorf("unsupported Eino chat model provider: %s", cfg.LLM.Provider)
 	}

@@ -44,9 +44,8 @@
 ```bash
 singeros/backend/
 │
-├── cmd/                        # 启动入口（多进程）
-│   ├── singer/                # 主服务（HTTP + Engine）
-│   └── skill-proxy/           # Skill Proxy 服务
+├── cmd/                       # 启动入口（多进程）
+│   └── singer/                # 主服务（HTTP + Engine）
 │
 ├── internal/                  # 私有核心代码（强制隔离）
 │   ├── eventengine/           # ⭐ 事件引擎
@@ -62,15 +61,15 @@ singeros/backend/
 │
 ├── pkg/                       # 可复用库（可对外）
 │   ├── event/                 # Event 定义（对外共享）
-│   └── client/                # SDK（调用 SingerOS）
+│   ├── client/                # SDK（调用 SingerOS）
+│   └── providers/             # 第三方服务提供者
 │
 ├── types/                     # 核心类型定义
 ├── config/                    # 配置管理
 ├── database/                  # 数据库
 ├── auth/                      # 认证系统
 ├── tools/                     # 工具定义
-├── toolruntime/               # 工具运行时
-└── providers/                 # 第三方服务提供者
+└── toolruntime/               # 工具运行时
 ```
 
 ## 4. 核心模块说明
