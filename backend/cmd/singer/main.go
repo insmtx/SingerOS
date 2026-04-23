@@ -26,6 +26,10 @@ import (
 	"github.com/insmtx/SingerOS/backend/internal/service/middleware"
 	trace "github.com/insmtx/SingerOS/backend/internal/service/middleware"
 	agentruntime "github.com/insmtx/SingerOS/backend/runtime"
+	githubprovider "github.com/insmtx/SingerOS/backend/pkg/providers/github"
+	bundledskills "github.com/insmtx/SingerOS/backend/skills/bundled"
+	skillcatalog "github.com/insmtx/SingerOS/backend/skills/catalog"
+	"github.com/insmtx/SingerOS/backend/toolruntime"
 	"github.com/insmtx/SingerOS/backend/tools"
 	skilltools "github.com/insmtx/SingerOS/backend/tools/skill"
 	"github.com/spf13/cobra"
@@ -223,8 +227,32 @@ func buildAuthService(cfg *config.Config) *auth.Service {
 func buildTooling(catalog *skilltools.Catalog) (*tools.Registry, error) {
 	registry := tools.NewRegistry()
 
+<<<<<<< HEAD
 	if err := skilltools.Register(registry, catalog); err != nil {
 		return nil, fmt.Errorf("register skill use tool: %w", err)
+=======
+	var githubFactory *githubprovider.ClientFactory
+	if cfg != nil && cfg.Github != nil {
+		githubFactory = github.NewClientFactory(*cfg.Github, authService)
+		if err := registry.Register(githubtools.NewAccountInfoTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github account info tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewPullRequestMetadataTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github pr metadata tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewPullRequestFilesTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github pr files tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewRepositoryFileTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github repository file tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewCompareCommitsTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github compare commits tool: %w", err)
+		}
+		if err := registry.Register(githubtools.NewPullRequestReviewPublishTool(nil)); err != nil {
+			return nil, nil, fmt.Errorf("register github pr review publish tool: %w", err)
+		}
+>>>>>>> a23a3b2 (refactor: 合并 providers 模块到 pkg/providers)
 	}
 
 	logs.Infof("Loaded %d tools for runtime", len(registry.List()))

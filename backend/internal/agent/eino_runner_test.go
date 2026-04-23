@@ -17,7 +17,7 @@ import (
 	runtimeeino "github.com/insmtx/SingerOS/backend/internal/agent/eino"
 	runtimeprompt "github.com/insmtx/SingerOS/backend/internal/agent/prompt"
 	"github.com/insmtx/SingerOS/backend/pkg/event"
-	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
+	githubprovider "github.com/insmtx/SingerOS/backend/pkg/providers/github"
 	"github.com/insmtx/SingerOS/backend/toolruntime"
 	"github.com/insmtx/SingerOS/backend/tools"
 	githubtools "github.com/insmtx/SingerOS/backend/tools/github"

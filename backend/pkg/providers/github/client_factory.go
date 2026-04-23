@@ -1,5 +1,5 @@
-// githubprovider 包提供 GitHub provider client 工厂。
-package githubprovider
+// github 包提供 GitHub provider client 工厂。
+package github
 
 import (
 	"context"

@@ -11,7 +11,7 @@ import (
 
 	auth "github.com/insmtx/SingerOS/backend/auth"
 	"github.com/insmtx/SingerOS/backend/config"
-	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
+	githubprovider "github.com/insmtx/SingerOS/backend/pkg/providers/github"
 	"github.com/insmtx/SingerOS/backend/toolruntime"
 	"github.com/insmtx/SingerOS/backend/tools"
 	githubtools "github.com/insmtx/SingerOS/backend/tools/github"
