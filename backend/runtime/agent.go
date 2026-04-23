@@ -11,13 +11,11 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	einoschema "github.com/cloudwego/eino/schema"
-	auth "github.com/insmtx/SingerOS/backend/auth"
 	"github.com/insmtx/SingerOS/backend/config"
 	runtimeeino "github.com/insmtx/SingerOS/backend/runtime/eino"
 	runtimeevents "github.com/insmtx/SingerOS/backend/runtime/events"
-	runtimeprompt "github.com/insmtx/SingerOS/backend/runtime/prompt"
-	"github.com/insmtx/SingerOS/backend/toolruntime"
 	"github.com/insmtx/SingerOS/backend/tools"
+	skilltools "github.com/insmtx/SingerOS/backend/tools/skill"
 	"github.com/ygpkg/yg-go/logs"
 )
 
@@ -25,12 +23,10 @@ const defaultAgentSystemPrompt = "You are the SingerOS agent runtime. Use availa
 
 // Agent is the SingerOS runtime agent entrypoint.
 type Agent struct {
-	chatModel    einomodel.ToolCallingChatModel
-	toolAdapter  *runtimeeino.ToolAdapter
-	toolRegistry *tools.Registry
-	skills       *runtimeprompt.SkillsContext
-	tools        *runtimeprompt.ToolsContext
-	systemPrompt string
+	chatModel     einomodel.ToolCallingChatModel
+	toolAdapter   *runtimeeino.ToolAdapter
+	skillsCatalog *skilltools.Catalog
+	systemPrompt  string
 }
 
 // NewAgent creates the SingerOS agent backed by the Eino flow framework.
@@ -41,25 +37,17 @@ func NewAgent(ctx context.Context, llmConfig *config.LLMConfig, runtimeConfig Co
 	if runtimeConfig.ToolRegistry == nil {
 		return nil, fmt.Errorf("tool registry is required")
 	}
-	toolRuntime := toolruntime.New(runtimeConfig.ToolRegistry, nil)
 
 	chatModel, err := runtimeeino.NewOpenAIChatModel(ctx, llmConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	skillsContext, err := runtimeprompt.BuildSkillsContext(runtimeConfig.SkillsCatalog)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Agent{
-		chatModel:    chatModel,
-		toolAdapter:  runtimeeino.NewToolAdapter(runtimeConfig.ToolRegistry, toolRuntime),
-		toolRegistry: runtimeConfig.ToolRegistry,
-		skills:       skillsContext,
-		tools:        runtimeprompt.BuildToolsContext(runtimeConfig.ToolRegistry),
-		systemPrompt: defaultAgentSystemPrompt,
+		chatModel:     chatModel,
+		toolAdapter:   runtimeeino.NewToolAdapter(runtimeConfig.ToolRegistry),
+		skillsCatalog: runtimeConfig.SkillsCatalog,
+		systemPrompt:  defaultAgentSystemPrompt,
 	}, nil
 }
 
@@ -85,8 +73,6 @@ func (a *Agent) Run(ctx context.Context, req *RequestContext) (*RunResult, error
 		ToolAdapter:  a.toolAdapter,
 		Binding:      state.toolBinding,
 		SystemPrompt: state.systemPrompt,
-		Skills:       a.skills,
-		Tools:        state.tools,
 		MaxStep:      state.maxStep,
 	})
 	if err != nil {
@@ -161,30 +147,33 @@ func (a *Agent) buildRunState(req *RequestContext) (*runState, error) {
 		userInput = string(req.Input.Type)
 	}
 
-	emitter := runtimeevents.NewEmitter(req.RunID, req.TraceID, sinkForRequest(req))
-	toolsContext := a.tools
-	if len(req.Capability.AllowedTools) > 0 {
-		var err error
-		toolsContext, err = runtimeprompt.BuildToolsContextForNames(a.toolRegistry, req.Capability.AllowedTools)
-		if err != nil {
-			return nil, err
-		}
+	systemPrompt, err := a.buildSystemPrompt(req)
+	if err != nil {
+		return nil, err
 	}
 
+	emitter := runtimeevents.NewEmitter(req.RunID, req.TraceID, sinkForRequest(req))
+	toolCtx := tools.ToolContext{
+		RunID:          req.RunID,
+		TraceID:        req.TraceID,
+		UserID:         req.Actor.UserID,
+		AccountID:      req.Actor.AccountID,
+		Channel:        req.Actor.Channel,
+		ChatID:         req.Conversation.ID,
+		ConversationID: req.Conversation.ID,
+		ExternalID:     req.Actor.ExternalID,
+		Metadata:       req.Metadata,
+	}
 	return &runState{
 		req:          req,
 		emitter:      emitter,
 		userInput:    userInput,
-		systemPrompt: a.systemPromptForRequest(req),
+		systemPrompt: systemPrompt,
 		toolBinding: runtimeeino.ToolBinding{
-			Selector:     authSelectorFromRequest(req),
-			UserID:       req.Actor.UserID,
-			AccountID:    req.Actor.AccountID,
+			ToolContext:  toolCtx,
 			AllowedTools: req.Capability.AllowedTools,
 			Emitter:      emitter,
-			EmitToolIO:   req.EventSink != nil,
 		},
-		tools:   toolsContext,
 		maxStep: maxStepForRequest(req),
 	}, nil
 }
@@ -215,92 +204,29 @@ func buildUserInput(req *RequestContext) string {
 	}
 }
 
-func authSelectorFromRequest(req *RequestContext) *auth.AuthSelector {
-	selector := &auth.AuthSelector{
-		ScopeType: auth.ScopeTypeEvent,
-	}
-	if req == nil {
-		return selector
-	}
-	selector.ScopeID = req.RunID
+func (a *Agent) buildSystemPrompt(req *RequestContext) (string, error) {
+	sections := make([]string, 0, 4)
+	if a != nil {
+		if base := strings.TrimSpace(a.systemPromptForRequest(req)); base != "" {
+			sections = append(sections, base)
+		}
 
-	externalRefs := make(map[string]string)
-	if provider := metadataString(req.Metadata, "provider"); provider != "" {
-		selector.Provider = provider
-	}
-	eventContext := metadataMap(req.Metadata, "event_context")
-	if provider := metadataString(eventContext, "provider"); selector.Provider == "" && provider != "" {
-		selector.Provider = provider
-	}
-	for key, value := range eventContext {
-		if stringValue, ok := value.(string); ok && stringValue != "" {
-			externalRefs[fmt.Sprintf("context.%s", key)] = stringValue
+		skillsContext, err := buildSkillsContext(a.skillsCatalog)
+		if err != nil {
+			return "", err
+		}
+		if skillsContext != nil {
+			if summary := strings.TrimSpace(skillsContext.SummarySection); summary != "" {
+				sections = append(sections, summary)
+			}
+			for _, section := range skillsContext.AlwaysSections {
+				if trimmed := strings.TrimSpace(section); trimmed != "" {
+					sections = append(sections, trimmed)
+				}
+			}
 		}
 	}
-	eventPayload := metadataMap(req.Metadata, "event_payload")
-	if installationID := nestedString(eventPayload, "installation", "id"); installationID != "" {
-		externalRefs["github.installation_id"] = installationID
-	}
-	if senderID := nestedString(eventPayload, "sender", "id"); senderID != "" {
-		externalRefs["github.sender_id"] = senderID
-	}
-	if senderLogin := nestedString(eventPayload, "sender", "login"); senderLogin != "" {
-		externalRefs["github.sender_login"] = senderLogin
-		selector.SubjectType = auth.SubjectTypeUser
-		selector.SubjectID = senderLogin
-	}
-	if selector.SubjectID == "" && req.Actor.UserID != "" {
-		selector.SubjectType = auth.SubjectTypeUser
-		selector.SubjectID = req.Actor.UserID
-	}
-	if req.Actor.AccountID != "" {
-		selector.ExplicitProfileID = req.Actor.AccountID
-	}
-	if len(externalRefs) > 0 {
-		selector.ExternalRefs = externalRefs
-	}
-	return selector
-}
-
-func metadataString(metadata map[string]any, key string) string {
-	if len(metadata) == 0 {
-		return ""
-	}
-	value, _ := metadata[key].(string)
-	return value
-}
-
-func metadataMap(metadata map[string]any, key string) map[string]any {
-	if len(metadata) == 0 {
-		return nil
-	}
-	if typed, ok := metadata[key].(map[string]any); ok {
-		return typed
-	}
-	return nil
-}
-
-func nestedString(payload map[string]any, path ...string) string {
-	var current interface{} = payload
-	for _, key := range path {
-		object, ok := current.(map[string]any)
-		if !ok {
-			return ""
-		}
-		current = object[key]
-	}
-	switch value := current.(type) {
-	case string:
-		return value
-	case float64:
-		return fmt.Sprintf("%.0f", value)
-	case int:
-		return fmt.Sprintf("%d", value)
-	case int64:
-		return fmt.Sprintf("%d", value)
-	default:
-		return ""
-	}
+	return strings.Join(sections, "\n\n"), nil
 }
 
 func (a *Agent) systemPromptForRequest(req *RequestContext) string {
@@ -315,23 +241,7 @@ func (a *Agent) systemPromptForRequest(req *RequestContext) string {
 	if req == nil {
 		return prompt
 	}
-
-	switch metadataString(req.Metadata, "event_type") {
-	case "pull_request", "github.pull_request", "github.pull_request.opened":
-		extra := "For GitHub pull request events, start from the event payload, then use GitHub tools to inspect metadata, changed files, and only the most relevant files before deciding whether to publish a review. Prefer COMMENT by default. Do not auto-approve. Use REQUEST_CHANGES only when you have concrete merge-blocking evidence."
-		if prompt == "" {
-			return extra
-		}
-		return prompt + "\n\n" + extra
-	case "push", "github.push":
-		extra := "For GitHub push events, apply the same code review conventions used for pull requests. Start from the raw payload, use compare-commits style GitHub tools to inspect the diff, then read only the most relevant files before writing findings. If there is no PR review target, still produce a concise code review assessment."
-		if prompt == "" {
-			return extra
-		}
-		return prompt + "\n\n" + extra
-	default:
-		return prompt
-	}
+	return prompt
 }
 
 func ensureRunDefaults(req *RequestContext) {

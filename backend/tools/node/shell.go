@@ -11,6 +11,7 @@ import (
 
 // NodeShellTool executes shell commands in a node container.
 type NodeShellTool struct {
+	tools.BaseTool
 	executor nodeExecutor
 }
 
@@ -20,38 +21,34 @@ func NewNodeShellTool() *NodeShellTool {
 }
 
 func newNodeShellToolWithExecutor(executor nodeExecutor) *NodeShellTool {
-	return &NodeShellTool{executor: executor}
-}
-
-// Info returns metadata for the node shell tool.
-func (t *NodeShellTool) Info() *tools.ToolInfo {
-	return &tools.ToolInfo{
-		Name:        ToolNameNodeShell,
-		Description: "Execute a shell command inside an assistant node Docker container",
-		Provider:    ProviderNode,
-		ReadOnly:    false,
-		InputSchema: &tools.Schema{
-			Type:     "object",
-			Required: []string{"container_id", "command"},
-			Properties: map[string]*tools.Property{
-				"container_id": {
-					Type:        "string",
-					Description: "Docker container id for the assistant node",
-				},
-				"command": {
-					Type:        "string",
-					Description: "Shell command to execute",
-				},
-				"working_dir": {
-					Type:        "string",
-					Description: "Working directory inside the container; defaults to /workspace",
-				},
-				"timeout": {
-					Type:        "integer",
-					Description: "Timeout in seconds; defaults to 120 and is clamped to 5-600",
+	return &NodeShellTool{
+		BaseTool: tools.NewBaseTool(
+			ToolNameNodeShell,
+			"Execute a shell command inside an assistant node Docker container",
+			tools.Schema{
+				Type:     "object",
+				Required: []string{"container_id", "command"},
+				Properties: map[string]*tools.Property{
+					"container_id": {
+						Type:        "string",
+						Description: "Docker container id for the assistant node",
+					},
+					"command": {
+						Type:        "string",
+						Description: "Shell command to execute",
+					},
+					"working_dir": {
+						Type:        "string",
+						Description: "Working directory inside the container; defaults to /workspace",
+					},
+					"timeout": {
+						Type:        "integer",
+						Description: "Timeout in seconds; defaults to 120 and is clamped to 5-600",
+					},
 				},
 			},
-		},
+		),
+		executor: executor,
 	}
 }
 
@@ -76,12 +73,12 @@ func (t *NodeShellTool) Validate(input map[string]interface{}) error {
 }
 
 // Execute runs the shell command inside the target node container.
-func (t *NodeShellTool) Execute(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
+func (t *NodeShellTool) Execute(ctx context.Context, input map[string]interface{}) (string, error) {
 	if err := t.Validate(input); err != nil {
-		return nil, err
+		return "", err
 	}
 	if t.executor == nil {
-		return nil, fmt.Errorf("node executor is required")
+		return "", fmt.Errorf("node executor is required")
 	}
 
 	containerID := stringValue(input, "container_id")
@@ -104,17 +101,17 @@ func (t *NodeShellTool) Execute(ctx context.Context, input map[string]interface{
 		Timeout:     time.Duration(timeoutSeconds) * time.Second,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("execute node shell command: %w", err)
+		return "", fmt.Errorf("execute node shell command: %w", err)
 	}
 	if result.TimedOut {
-		return map[string]interface{}{
+		return tools.JSONString(map[string]interface{}{
 			"container_id": containerID,
 			"command":      command,
 			"working_dir":  workingDir,
 			"timeout":      timeoutSeconds,
 			"timed_out":    true,
 			"message":      fmt.Sprintf("command timed out after %ds", timeoutSeconds),
-		}, nil
+		})
 	}
 
 	combined := combineOutput(result.Stdout, result.Stderr)
@@ -124,7 +121,7 @@ func (t *NodeShellTool) Execute(ctx context.Context, input map[string]interface{
 		display += "\n" + output
 	}
 
-	return map[string]interface{}{
+	return tools.JSONString(map[string]interface{}{
 		"container_id": containerID,
 		"command":      command,
 		"working_dir":  workingDir,
@@ -136,5 +133,5 @@ func (t *NodeShellTool) Execute(ctx context.Context, input map[string]interface{
 		"display":      display,
 		"truncated":    truncated,
 		"total_lines":  totalLines,
-	}, nil
+	})
 }

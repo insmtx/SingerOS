@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	gogithub "github.com/google/go-github/v78/github"
-	auth "github.com/insmtx/SingerOS/backend/auth"
 	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
 	"github.com/insmtx/SingerOS/backend/tools"
 )
@@ -20,53 +19,51 @@ var allowedReviewEvents = map[string]struct{}{
 }
 
 type PullRequestReviewPublishTool struct {
+	tools.BaseTool
 	factory *githubprovider.ClientFactory
 }
 
 func NewPullRequestReviewPublishTool(factory *githubprovider.ClientFactory) *PullRequestReviewPublishTool {
-	return &PullRequestReviewPublishTool{factory: factory}
-}
-
-func (t *PullRequestReviewPublishTool) Info() *tools.ToolInfo {
-	return &tools.ToolInfo{
-		Name:        ToolNamePublishPullRequestReview,
-		Description: "Publish a GitHub pull request review with a summary body and optional inline review comments",
-		Provider:    auth.ProviderGitHub,
-		ReadOnly:    false,
-		InputSchema: &tools.Schema{
-			Type:     "object",
-			Required: []string{"repo", "pr_number", "body"},
-			Properties: map[string]*tools.Property{
-				"repo": {
-					Type:        "string",
-					Description: "Repository full name in owner/name format",
-				},
-				"pr_number": {
-					Type:        "integer",
-					Description: "Pull request number",
-				},
-				"body": {
-					Type:        "string",
-					Description: "Review summary body to publish",
-				},
-				"event": {
-					Type:        "string",
-					Description: "Optional review event: COMMENT, APPROVE, or REQUEST_CHANGES",
-					Enum:        []string{"COMMENT", "APPROVE", "REQUEST_CHANGES"},
-				},
-				"commit_id": {
-					Type:        "string",
-					Description: "Optional commit SHA used to anchor inline review comments",
-				},
-				"comments": {
-					Type:        "array",
-					Description: "Optional inline review comments",
-					Items: &tools.Property{
-						Type: "object",
+	return &PullRequestReviewPublishTool{
+		BaseTool: tools.NewBaseTool(
+			ToolNamePublishPullRequestReview,
+			"Publish a GitHub pull request review with a summary body and optional inline review comments",
+			tools.Schema{
+				Type:     "object",
+				Required: []string{"repo", "pr_number", "body"},
+				Properties: map[string]*tools.Property{
+					"repo": {
+						Type:        "string",
+						Description: "Repository full name in owner/name format",
+					},
+					"pr_number": {
+						Type:        "integer",
+						Description: "Pull request number",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Review summary body to publish",
+					},
+					"event": {
+						Type:        "string",
+						Description: "Optional review event: COMMENT, APPROVE, or REQUEST_CHANGES",
+						Enum:        []string{"COMMENT", "APPROVE", "REQUEST_CHANGES"},
+					},
+					"commit_id": {
+						Type:        "string",
+						Description: "Optional commit SHA used to anchor inline review comments",
+					},
+					"comments": {
+						Type:        "array",
+						Description: "Optional inline review comments",
+						Items: &tools.Property{
+							Type: "object",
+						},
 					},
 				},
 			},
-		},
+		),
+		factory: factory,
 	}
 }
 
@@ -105,29 +102,18 @@ func (t *PullRequestReviewPublishTool) Validate(input map[string]interface{}) er
 	return nil
 }
 
-func (t *PullRequestReviewPublishTool) Execute(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
+func (t *PullRequestReviewPublishTool) Execute(ctx context.Context, input map[string]interface{}) (string, error) {
 	if err := t.Validate(input); err != nil {
-		return nil, err
+		return "", err
 	}
 	resolved, err := resolveClientDirect(ctx, t.factory, input)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	return t.buildResult(ctx, resolved, input)
 }
 
-func (t *PullRequestReviewPublishTool) ExecuteWithContext(ctx context.Context, execCtx *tools.ExecutionContext, input map[string]interface{}) (map[string]interface{}, error) {
-	if err := t.Validate(input); err != nil {
-		return nil, err
-	}
-	resolved, err := resolveClientFromContext(execCtx)
-	if err != nil {
-		return nil, err
-	}
-	return t.buildResult(ctx, resolved, input)
-}
-
-func (t *PullRequestReviewPublishTool) buildResult(ctx context.Context, resolved *githubprovider.ResolvedClient, input map[string]interface{}) (map[string]interface{}, error) {
+func (t *PullRequestReviewPublishTool) buildResult(ctx context.Context, resolved *githubprovider.ResolvedClient, input map[string]interface{}) (string, error) {
 	owner, repo, _ := parseRepo(input["repo"].(string))
 	prNumber, _ := getIntValue(input["pr_number"])
 	body := strings.TrimSpace(input["body"].(string))
@@ -149,7 +135,7 @@ func (t *PullRequestReviewPublishTool) buildResult(ctx context.Context, resolved
 
 	comments, err := buildDraftReviewComments(input["comments"])
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	if len(comments) > 0 {
 		reviewRequest.Comments = comments
@@ -157,7 +143,7 @@ func (t *PullRequestReviewPublishTool) buildResult(ctx context.Context, resolved
 
 	review, _, err := resolved.Client.PullRequests.CreateReview(ctx, owner, repo, prNumber, reviewRequest)
 	if err != nil {
-		return nil, fmt.Errorf("create github pull request review: %w", err)
+		return "", fmt.Errorf("create github pull request review: %w", err)
 	}
 
 	result := map[string]interface{}{
@@ -190,7 +176,7 @@ func (t *PullRequestReviewPublishTool) buildResult(ctx context.Context, resolved
 		result["comment_count"] = len(comments)
 	}
 
-	return result, nil
+	return tools.JSONString(result)
 }
 
 func buildDraftReviewComments(value interface{}) ([]*gogithub.DraftReviewComment, error) {

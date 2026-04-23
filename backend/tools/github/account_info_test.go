@@ -94,12 +94,13 @@ func TestAccountInfoToolExecute(t *testing.T) {
 		t.Fatalf("set default account: %v", err)
 	}
 
-	result, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawResult, err := tool.Execute(context.Background(), map[string]interface{}{
 		"user_id": "u1",
 	})
 	if err != nil {
 		t.Fatalf("execute tool: %v", err)
 	}
+	result := decodeGitHubToolOutput(t, rawResult)
 
 	githubUser, ok := result["github_user"].(map[string]interface{})
 	if !ok {

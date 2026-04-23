@@ -12,11 +12,9 @@ import (
 	auth "github.com/insmtx/SingerOS/backend/auth"
 	"github.com/insmtx/SingerOS/backend/config"
 	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
-	"github.com/insmtx/SingerOS/backend/toolruntime"
-	"github.com/insmtx/SingerOS/backend/tools"
 )
 
-func TestGitHubReadToolsThroughRuntime(t *testing.T) {
+func TestGitHubReadToolsExecute(t *testing.T) {
 	store := auth.NewInMemoryStore()
 	resolver := auth.NewAccountResolver(store)
 	authService := auth.NewService(store, resolver)
@@ -111,45 +109,36 @@ func TestGitHubReadToolsThroughRuntime(t *testing.T) {
 		t.Fatalf("set default account: %v", err)
 	}
 
-	registry := tools.NewRegistry()
-	mustRegisterTool(t, registry, NewPullRequestMetadataTool(nil))
-	mustRegisterTool(t, registry, NewPullRequestFilesTool(nil))
-	mustRegisterTool(t, registry, NewRepositoryFileTool(nil))
-
-	runtime := toolruntime.New(registry, factory)
-
-	metadata, err := runtime.Execute(context.Background(), &toolruntime.ExecuteRequest{
-		ToolName: ToolNameGetPullRequestMetadata,
-		UserID:   "u1",
-		Input: map[string]interface{}{
-			"repo":      "insmtx/SingerOS",
-			"pr_number": 12,
-		},
+	metadataTool := NewPullRequestMetadataTool(factory)
+	metadataOutputRaw, err := metadataTool.Execute(context.Background(), map[string]interface{}{
+		"user_id":   "u1",
+		"repo":      "insmtx/SingerOS",
+		"pr_number": 12,
 	})
 	if err != nil {
 		t.Fatalf("execute metadata tool: %v", err)
 	}
-	pr, ok := metadata.Output["pull_request"].(map[string]interface{})
+	metadataOutput := decodeGitHubToolOutput(t, metadataOutputRaw)
+	pr, ok := metadataOutput["pull_request"].(map[string]interface{})
 	if !ok || pr["title"] != "Add Eino runtime" {
-		t.Fatalf("unexpected metadata output: %+v", metadata.Output)
+		t.Fatalf("unexpected metadata output: %+v", metadataOutput)
 	}
 
-	files, err := runtime.Execute(context.Background(), &toolruntime.ExecuteRequest{
-		ToolName: ToolNameGetPullRequestFiles,
-		UserID:   "u1",
-		Input: map[string]interface{}{
-			"repo":      "insmtx/SingerOS",
-			"pr_number": 12,
-		},
+	filesTool := NewPullRequestFilesTool(factory)
+	filesOutputRaw, err := filesTool.Execute(context.Background(), map[string]interface{}{
+		"user_id":   "u1",
+		"repo":      "insmtx/SingerOS",
+		"pr_number": 12,
 	})
 	if err != nil {
 		t.Fatalf("execute files tool: %v", err)
 	}
-	fileList, ok := files.Output["files"].([]map[string]interface{})
+	filesOutput := decodeGitHubToolOutput(t, filesOutputRaw)
+	fileList, ok := filesOutput["files"].([]map[string]interface{})
 	if !ok {
-		rawList, rawOK := files.Output["files"].([]interface{})
+		rawList, rawOK := filesOutput["files"].([]interface{})
 		if !rawOK || len(rawList) != 1 {
-			t.Fatalf("unexpected files output: %+v", files.Output)
+			t.Fatalf("unexpected files output: %+v", filesOutput)
 		}
 		firstFile, _ := rawList[0].(map[string]interface{})
 		if firstFile["filename"] != "backend/runtime/eino_runner.go" {
@@ -159,27 +148,19 @@ func TestGitHubReadToolsThroughRuntime(t *testing.T) {
 		t.Fatalf("unexpected file list: %+v", fileList)
 	}
 
-	fileContent, err := runtime.Execute(context.Background(), &toolruntime.ExecuteRequest{
-		ToolName: ToolNameGetRepositoryFile,
-		UserID:   "u1",
-		Input: map[string]interface{}{
-			"repo": "insmtx/SingerOS",
-			"path": "backend/runtime/eino_runner.go",
-			"ref":  "main",
-		},
+	fileTool := NewRepositoryFileTool(factory)
+	fileContentOutputRaw, err := fileTool.Execute(context.Background(), map[string]interface{}{
+		"user_id": "u1",
+		"repo":    "insmtx/SingerOS",
+		"path":    "backend/runtime/eino_runner.go",
+		"ref":     "main",
 	})
 	if err != nil {
 		t.Fatalf("execute repository file tool: %v", err)
 	}
-	if fileContent.Output["content"] != "package runtime\n" {
-		t.Fatalf("unexpected file content: %+v", fileContent.Output)
-	}
-}
-
-func mustRegisterTool(t *testing.T, registry *tools.Registry, tool tools.Tool) {
-	t.Helper()
-	if err := registry.Register(tool); err != nil {
-		t.Fatalf("register tool %s: %v", tool.Info().Name, err)
+	fileContentOutput := decodeGitHubToolOutput(t, fileContentOutputRaw)
+	if fileContentOutput["content"] != "package runtime\n" {
+		t.Fatalf("unexpected file content: %+v", fileContentOutput)
 	}
 }
 

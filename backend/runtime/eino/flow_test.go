@@ -16,8 +16,6 @@ import (
 	"github.com/insmtx/SingerOS/backend/config"
 	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
 	runtimeevents "github.com/insmtx/SingerOS/backend/runtime/events"
-	runtimeprompt "github.com/insmtx/SingerOS/backend/runtime/prompt"
-	"github.com/insmtx/SingerOS/backend/toolruntime"
 	"github.com/insmtx/SingerOS/backend/tools"
 	githubtools "github.com/insmtx/SingerOS/backend/tools/github"
 )
@@ -25,32 +23,24 @@ import (
 func TestFlowGenerate(t *testing.T) {
 	registry := tools.NewRegistry()
 	if err := registry.Register(&mockTool{
-		info: &tools.ToolInfo{
-			Name:        "github.account.get_current_user",
-			Description: "Read current GitHub account",
-			ReadOnly:    true,
-			InputSchema: &tools.Schema{
+		BaseTool: tools.NewBaseTool(
+			"test.account.get_current_user",
+			"Read current test account",
+			tools.Schema{
 				Type: "object",
 			},
-		},
+		),
 	}); err != nil {
 		t.Fatalf("register mock tool: %v", err)
 	}
 
 	model := &fakeToolCallingModel{}
-	adapter := NewToolAdapter(registry, toolruntime.New(registry, nil))
+	adapter := NewToolAdapter(registry)
 	flow, err := NewFlow(context.Background(), &FlowConfig{
 		Model:        model,
 		ToolAdapter:  adapter,
-		Binding:      ToolBinding{UserID: "u1"},
-		SystemPrompt: "You are SingerOS.",
-		Skills: &runtimeprompt.SkillsContext{
-			SummarySection: "Available skills:\n- github-pr-review: Review pull requests.",
-			AlwaysSections: []string{"## Skill: github-pr-review\nAlways inspect changed files first."},
-		},
-		Tools: &runtimeprompt.ToolsContext{
-			SummarySection: "Available tools:\n- github.account.get_current_user: Read current GitHub account",
-		},
+		Binding:      ToolBinding{ToolContext: tools.ToolContext{UserID: "u1"}},
+		SystemPrompt: "You are SingerOS.\n\nAvailable skills:\n- github-pr-review: Review pull requests.",
 	})
 	if err != nil {
 		t.Fatalf("new flow: %v", err)
@@ -63,7 +53,7 @@ func TestFlowGenerate(t *testing.T) {
 	if message == nil {
 		t.Fatalf("expected non-nil message")
 	}
-	if !strings.Contains(message.Content, "github.account.get_current_user") {
+	if !strings.Contains(message.Content, "test.account.get_current_user") {
 		t.Fatalf("unexpected final content: %s", message.Content)
 	}
 	if model.state == nil || len(model.state.calls) == 0 {
@@ -74,17 +64,20 @@ func TestFlowGenerate(t *testing.T) {
 		if len(call) == 0 || call[0].Role != einoschema.System {
 			continue
 		}
-		if strings.Contains(call[0].Content, "Available skills:") && strings.Contains(call[0].Content, "Available tools:") {
+		if strings.Contains(call[0].Content, "Available tools:") {
+			t.Fatalf("tool summary should not be injected into system prompt: %s", call[0].Content)
+		}
+		if strings.Contains(call[0].Content, "You are SingerOS.") && strings.Contains(call[0].Content, "Available skills:") {
 			foundSystemPrompt = true
 			break
 		}
 	}
 	if !foundSystemPrompt {
-		t.Fatalf("expected system prompt with skills/tools summary to be injected")
+		t.Fatalf("expected system prompt with skills summary to be injected")
 	}
 }
 
-func TestFlowGenerateWithRealToolRuntime(t *testing.T) {
+func TestFlowGenerateWithRealToolContext(t *testing.T) {
 	store := auth.NewInMemoryStore()
 	resolver := auth.NewAccountResolver(store)
 	authService := auth.NewService(store, resolver)
@@ -143,18 +136,16 @@ func TestFlowGenerateWithRealToolRuntime(t *testing.T) {
 	})
 
 	registry := tools.NewRegistry()
-	if err := registry.Register(githubtools.NewAccountInfoTool(nil)); err != nil {
+	if err := registry.Register(githubtools.NewAccountInfoTool(githubFactory)); err != nil {
 		t.Fatalf("register github tool: %v", err)
 	}
 
 	model := &fakeToolCallingModel{}
-	adapter := NewToolAdapter(registry, toolruntime.New(registry, githubFactory))
+	adapter := NewToolAdapter(registry)
 	flow, err := NewFlow(context.Background(), &FlowConfig{
 		Model:       model,
 		ToolAdapter: adapter,
-		Binding:     ToolBinding{UserID: "u1"},
-		Skills:      &runtimeprompt.SkillsContext{},
-		Tools:       runtimeprompt.BuildToolsContext(registry),
+		Binding:     ToolBinding{ToolContext: tools.ToolContext{UserID: "u1"}},
 	})
 	if err != nil {
 		t.Fatalf("new flow: %v", err)
@@ -173,8 +164,8 @@ func TestFlowStreamEmitsMessageEvents(t *testing.T) {
 	registry := tools.NewRegistry()
 	flow, err := NewFlow(context.Background(), &FlowConfig{
 		Model:       &streamingTextModel{},
-		ToolAdapter: NewToolAdapter(registry, toolruntime.New(registry, nil)),
-		Binding:     ToolBinding{UserID: "u1"},
+		ToolAdapter: NewToolAdapter(registry),
+		Binding:     ToolBinding{ToolContext: tools.ToolContext{UserID: "u1"}},
 	})
 	if err != nil {
 		t.Fatalf("new flow: %v", err)
@@ -194,20 +185,14 @@ func TestFlowStreamEmitsMessageEvents(t *testing.T) {
 	}
 
 	var deltaCount int
-	var finalSnapshot string
 	for _, event := range emitted {
 		switch event.Type {
 		case runtimeevents.RunEventMessageDelta:
 			deltaCount++
-		case runtimeevents.RunEventMessageSnapshot:
-			finalSnapshot = event.Content
 		}
 	}
 	if deltaCount != 2 {
 		t.Fatalf("expected two delta events, got %d: %+v", deltaCount, emitted)
-	}
-	if finalSnapshot != "hello world" {
-		t.Fatalf("unexpected final snapshot: %q", finalSnapshot)
 	}
 }
 
@@ -235,7 +220,7 @@ func (m *fakeToolCallingModel) Generate(ctx context.Context, input []*einoschema
 		return einoschema.AssistantMessage(fmt.Sprintf("final answer: %s", last.Content), nil), nil
 	}
 
-	toolName := "github.account.get_current_user"
+	toolName := "test.account.get_current_user"
 	if len(m.boundTools) > 0 && m.boundTools[0] != nil && m.boundTools[0].Name != "" {
 		toolName = m.boundTools[0].Name
 	}
@@ -289,19 +274,15 @@ func (m *streamingTextModel) WithTools(tools []*einoschema.ToolInfo) (einomodel.
 }
 
 type mockTool struct {
-	info *tools.ToolInfo
-}
-
-func (m *mockTool) Info() *tools.ToolInfo {
-	return m.info
+	tools.BaseTool
 }
 
 func (m *mockTool) Validate(input map[string]interface{}) error {
 	return nil
 }
 
-func (m *mockTool) Execute(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
-	return map[string]interface{}{
-		"tool": m.info.Name,
-	}, nil
+func (m *mockTool) Execute(ctx context.Context, input map[string]interface{}) (string, error) {
+	return tools.JSONString(map[string]interface{}{
+		"tool": m.Name(),
+	})
 }

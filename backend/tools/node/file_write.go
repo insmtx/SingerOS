@@ -11,6 +11,7 @@ import (
 
 // NodeFileWriteTool writes files to a node container.
 type NodeFileWriteTool struct {
+	tools.BaseTool
 	executor nodeExecutor
 }
 
@@ -20,38 +21,34 @@ func NewNodeFileWriteTool() *NodeFileWriteTool {
 }
 
 func newNodeFileWriteToolWithExecutor(executor nodeExecutor) *NodeFileWriteTool {
-	return &NodeFileWriteTool{executor: executor}
-}
-
-// Info returns metadata for the node file write tool.
-func (t *NodeFileWriteTool) Info() *tools.ToolInfo {
-	return &tools.ToolInfo{
-		Name:        ToolNameNodeFileWrite,
-		Description: "Create or modify a file inside an assistant node Docker container",
-		Provider:    ProviderNode,
-		ReadOnly:    false,
-		InputSchema: &tools.Schema{
-			Type:     "object",
-			Required: []string{"container_id", "path", "content"},
-			Properties: map[string]*tools.Property{
-				"container_id": {
-					Type:        "string",
-					Description: "Docker container id for the assistant node",
-				},
-				"path": {
-					Type:        "string",
-					Description: "File path inside the container",
-				},
-				"content": {
-					Type:        "string",
-					Description: "File content to write",
-				},
-				"append": {
-					Type:        "boolean",
-					Description: "Append to the file instead of overwriting it",
+	return &NodeFileWriteTool{
+		BaseTool: tools.NewBaseTool(
+			ToolNameNodeFileWrite,
+			"Create or modify a file inside an assistant node Docker container",
+			tools.Schema{
+				Type:     "object",
+				Required: []string{"container_id", "path", "content"},
+				Properties: map[string]*tools.Property{
+					"container_id": {
+						Type:        "string",
+						Description: "Docker container id for the assistant node",
+					},
+					"path": {
+						Type:        "string",
+						Description: "File path inside the container",
+					},
+					"content": {
+						Type:        "string",
+						Description: "File content to write",
+					},
+					"append": {
+						Type:        "boolean",
+						Description: "Append to the file instead of overwriting it",
+					},
 				},
 			},
-		},
+		),
+		executor: executor,
 	}
 }
 
@@ -76,12 +73,12 @@ func (t *NodeFileWriteTool) Validate(input map[string]interface{}) error {
 }
 
 // Execute writes a file to the target node container.
-func (t *NodeFileWriteTool) Execute(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
+func (t *NodeFileWriteTool) Execute(ctx context.Context, input map[string]interface{}) (string, error) {
 	if err := t.Validate(input); err != nil {
-		return nil, err
+		return "", err
 	}
 	if t.executor == nil {
-		return nil, fmt.Errorf("node executor is required")
+		return "", fmt.Errorf("node executor is required")
 	}
 
 	containerID := stringValue(input, "container_id")
@@ -96,10 +93,10 @@ func (t *NodeFileWriteTool) Execute(ctx context.Context, input map[string]interf
 			Timeout:     10 * time.Second,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("create node file parent directory: %w", err)
+			return "", fmt.Errorf("create node file parent directory: %w", err)
 		}
 		if mkdirResult.ExitCode != 0 {
-			return nil, fmt.Errorf("create node file parent directory failed: %s", strings.TrimSpace(combineOutput(mkdirResult.Stdout, mkdirResult.Stderr)))
+			return "", fmt.Errorf("create node file parent directory failed: %s", strings.TrimSpace(combineOutput(mkdirResult.Stdout, mkdirResult.Stderr)))
 		}
 	}
 
@@ -114,18 +111,18 @@ func (t *NodeFileWriteTool) Execute(ctx context.Context, input map[string]interf
 		Timeout:     30 * time.Second,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("write node file: %w", err)
+		return "", fmt.Errorf("write node file: %w", err)
 	}
 	if writeResult.TimedOut {
-		return map[string]interface{}{
+		return tools.JSONString(map[string]interface{}{
 			"container_id": containerID,
 			"path":         path,
 			"timed_out":    true,
 			"message":      fmt.Sprintf("write file timed out: %s", path),
-		}, nil
+		})
 	}
 	if writeResult.ExitCode != 0 {
-		return nil, fmt.Errorf("write node file failed: %s", strings.TrimSpace(combineOutput(writeResult.Stdout, writeResult.Stderr)))
+		return "", fmt.Errorf("write node file failed: %s", strings.TrimSpace(combineOutput(writeResult.Stdout, writeResult.Stderr)))
 	}
 
 	action := "written"
@@ -134,12 +131,12 @@ func (t *NodeFileWriteTool) Execute(ctx context.Context, input map[string]interf
 	}
 	lineCount := countContentLines(content)
 
-	return map[string]interface{}{
+	return tools.JSONString(map[string]interface{}{
 		"container_id": containerID,
 		"path":         path,
 		"append":       appendMode,
 		"action":       action,
 		"line_count":   lineCount,
 		"message":      fmt.Sprintf("file %s: %s (%d lines)", action, path, lineCount),
-	}, nil
+	})
 }

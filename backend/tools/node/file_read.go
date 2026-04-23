@@ -12,6 +12,7 @@ import (
 
 // NodeFileReadTool reads files from a node container.
 type NodeFileReadTool struct {
+	tools.BaseTool
 	executor nodeExecutor
 }
 
@@ -21,38 +22,34 @@ func NewNodeFileReadTool() *NodeFileReadTool {
 }
 
 func newNodeFileReadToolWithExecutor(executor nodeExecutor) *NodeFileReadTool {
-	return &NodeFileReadTool{executor: executor}
-}
-
-// Info returns metadata for the node file read tool.
-func (t *NodeFileReadTool) Info() *tools.ToolInfo {
-	return &tools.ToolInfo{
-		Name:        ToolNameNodeFileRead,
-		Description: "Read a file from an assistant node Docker container with optional line ranges",
-		Provider:    ProviderNode,
-		ReadOnly:    true,
-		InputSchema: &tools.Schema{
-			Type:     "object",
-			Required: []string{"container_id", "path"},
-			Properties: map[string]*tools.Property{
-				"container_id": {
-					Type:        "string",
-					Description: "Docker container id for the assistant node",
-				},
-				"path": {
-					Type:        "string",
-					Description: "File path inside the container",
-				},
-				"offset": {
-					Type:        "integer",
-					Description: "Starting line number, beginning at 1",
-				},
-				"limit": {
-					Type:        "integer",
-					Description: "Number of lines to read; defaults to 200 and is clamped to 1-2000",
+	return &NodeFileReadTool{
+		BaseTool: tools.NewBaseTool(
+			ToolNameNodeFileRead,
+			"Read a file from an assistant node Docker container with optional line ranges",
+			tools.Schema{
+				Type:     "object",
+				Required: []string{"container_id", "path"},
+				Properties: map[string]*tools.Property{
+					"container_id": {
+						Type:        "string",
+						Description: "Docker container id for the assistant node",
+					},
+					"path": {
+						Type:        "string",
+						Description: "File path inside the container",
+					},
+					"offset": {
+						Type:        "integer",
+						Description: "Starting line number, beginning at 1",
+					},
+					"limit": {
+						Type:        "integer",
+						Description: "Number of lines to read; defaults to 200 and is clamped to 1-2000",
+					},
 				},
 			},
-		},
+		),
+		executor: executor,
 	}
 }
 
@@ -81,12 +78,12 @@ func (t *NodeFileReadTool) Validate(input map[string]interface{}) error {
 }
 
 // Execute reads a file from the target node container.
-func (t *NodeFileReadTool) Execute(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
+func (t *NodeFileReadTool) Execute(ctx context.Context, input map[string]interface{}) (string, error) {
 	if err := t.Validate(input); err != nil {
-		return nil, err
+		return "", err
 	}
 	if t.executor == nil {
-		return nil, fmt.Errorf("node executor is required")
+		return "", fmt.Errorf("node executor is required")
 	}
 
 	containerID := stringValue(input, "container_id")
@@ -104,18 +101,18 @@ func (t *NodeFileReadTool) Execute(ctx context.Context, input map[string]interfa
 		Timeout:     5 * time.Second,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("check node file: %w", err)
+		return "", fmt.Errorf("check node file: %w", err)
 	}
 	if strings.Contains(checkResult.Stdout, "NOTFOUND") {
-		return map[string]interface{}{
+		return tools.JSONString(map[string]interface{}{
 			"container_id": containerID,
 			"path":         path,
 			"exists":       false,
 			"message":      fmt.Sprintf("file does not exist: %s", path),
-		}, nil
+		})
 	}
 	if checkResult.ExitCode != 0 {
-		return nil, fmt.Errorf("check node file failed: %s", strings.TrimSpace(combineOutput(checkResult.Stdout, checkResult.Stderr)))
+		return "", fmt.Errorf("check node file failed: %s", strings.TrimSpace(combineOutput(checkResult.Stdout, checkResult.Stderr)))
 	}
 
 	shownStart := offset
@@ -135,18 +132,18 @@ func (t *NodeFileReadTool) Execute(ctx context.Context, input map[string]interfa
 		Timeout:     15 * time.Second,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("read node file: %w", err)
+		return "", fmt.Errorf("read node file: %w", err)
 	}
 	if readResult.TimedOut {
-		return map[string]interface{}{
+		return tools.JSONString(map[string]interface{}{
 			"container_id": containerID,
 			"path":         path,
 			"timed_out":    true,
 			"message":      fmt.Sprintf("read file timed out: %s", path),
-		}, nil
+		})
 	}
 	if readResult.ExitCode != 0 {
-		return nil, fmt.Errorf("read node file failed: %s", strings.TrimSpace(combineOutput(readResult.Stdout, readResult.Stderr)))
+		return "", fmt.Errorf("read node file failed: %s", strings.TrimSpace(combineOutput(readResult.Stdout, readResult.Stderr)))
 	}
 
 	content := strings.TrimRight(readResult.Stdout, "\n")
@@ -175,7 +172,7 @@ func (t *NodeFileReadTool) Execute(ctx context.Context, input map[string]interfa
 		numberedContent += fmt.Sprintf("\n\n[file has %d lines, shown %d-%d]", totalLines, shownStart, shownEnd)
 	}
 
-	return map[string]interface{}{
+	return tools.JSONString(map[string]interface{}{
 		"container_id":       containerID,
 		"path":               path,
 		"exists":             true,
@@ -189,5 +186,5 @@ func (t *NodeFileReadTool) Execute(ctx context.Context, input map[string]interfa
 		"has_more":           hasMore,
 		"display":            numberedContent,
 		"display_line_count": len(lines),
-	}, nil
+	})
 }

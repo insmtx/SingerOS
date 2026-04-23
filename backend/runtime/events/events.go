@@ -13,9 +13,8 @@ const (
 	RunEventFailed    RunEventType = "run.failed"
 	RunEventCancelled RunEventType = "run.cancelled"
 
-	RunEventMessageDelta    RunEventType = "message.delta"
-	RunEventMessageSnapshot RunEventType = "message.snapshot"
-	RunEventReasoningDelta  RunEventType = "reasoning.delta"
+	RunEventMessageDelta   RunEventType = "message.delta"
+	RunEventReasoningDelta RunEventType = "reasoning.delta"
 
 	RunEventToolCallStarted   RunEventType = "tool_call.started"
 	RunEventToolCallArguments RunEventType = "tool_call.arguments"

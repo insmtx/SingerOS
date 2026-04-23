@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/insmtx/SingerOS/backend/config"
@@ -20,6 +21,52 @@ import (
 )
 
 const defaultTestNodeContainerID = "b327e241316c2a2f62cbee986edd0e71235205f0fde5dc7a4543f5344396b351"
+
+func TestAgentBuildSystemPromptIncludesSkills(t *testing.T) {
+	catalog, err := skilltools.NewCatalog(fstest.MapFS{
+		"code-review/SKILL.md": {
+			Data: []byte(`---
+name: code-review
+description: Review code.
+metadata:
+  singeros:
+    always: true
+---
+Always inspect diffs first.`),
+		},
+	})
+	if err != nil {
+		t.Fatalf("new skills catalog: %v", err)
+	}
+
+	agent := &Agent{
+		systemPrompt:  "Base runtime prompt.",
+		skillsCatalog: catalog,
+	}
+
+	prompt, err := agent.buildSystemPrompt(&RequestContext{
+		Assistant: AssistantContext{
+			SystemPrompt: "Assistant-specific prompt.",
+		},
+	})
+	if err != nil {
+		t.Fatalf("build system prompt: %v", err)
+	}
+
+	for _, expected := range []string{
+		"Base runtime prompt.",
+		"Assistant-specific prompt.",
+		"Available skills:",
+		"## Skill: code-review",
+	} {
+		if !strings.Contains(prompt, expected) {
+			t.Fatalf("expected prompt to contain %q, got %s", expected, prompt)
+		}
+	}
+	if strings.Contains(prompt, "Available tools:") {
+		t.Fatalf("tool summary should not be injected into system prompt: %s", prompt)
+	}
+}
 
 func TestAgentRunRealModel(t *testing.T) {
 	logs.SetLevel(zapcore.DebugLevel)
@@ -120,7 +167,7 @@ func TestAgentRunNodeTool(t *testing.T) {
 			Channel: "test",
 		},
 		Input: InputContext{
-			Type: InputTypeTaskInstruction,
+			Type: InputTypeMessage,
 			Text: "使用工具查询当前系统时间。",
 		},
 		Runtime: RuntimeOptions{MaxStep: 6},
@@ -319,6 +366,8 @@ func (s *recordingEventSink) Emit(ctx context.Context, event *runtimeevents.RunE
 	defer s.mu.Unlock()
 
 	copied := *event
+	logs.DebugContextf(ctx, "recordingEventSink event: type=%s run_id=%s seq=%d content=%s",
+		copied.Type, copied.RunID, copied.Seq, copied.Content)
 	s.events = append(s.events, &copied)
 	return nil
 }

@@ -1,4 +1,4 @@
-package prompt
+package runtime
 
 import (
 	"fmt"
@@ -7,25 +7,23 @@ import (
 	skilltools "github.com/insmtx/SingerOS/backend/tools/skill"
 )
 
-// SkillsContext is the prompt-ready projection of the file-based skill catalog.
-type SkillsContext struct {
+type skillsContext struct {
 	SummarySection string
 	AlwaysSections []string
 }
 
-// BuildSkillsContext converts the skill catalog into prompt-ready summary sections.
-func BuildSkillsContext(catalog *skilltools.Catalog) (*SkillsContext, error) {
+func buildSkillsContext(catalog *skilltools.Catalog) (*skillsContext, error) {
 	if catalog == nil {
-		return &SkillsContext{}, nil
+		return &skillsContext{}, nil
 	}
 
 	summaries := catalog.List()
 	if len(summaries) == 0 {
-		return &SkillsContext{}, nil
+		return &skillsContext{}, nil
 	}
 
-	context := &SkillsContext{
-		SummarySection: buildSummarySection(summaries),
+	context := &skillsContext{
+		SummarySection: buildSkillSummarySection(summaries),
 		AlwaysSections: make([]string, 0),
 	}
 
@@ -50,7 +48,7 @@ func BuildSkillsContext(catalog *skilltools.Catalog) (*SkillsContext, error) {
 	return context, nil
 }
 
-func buildSummarySection(summaries []skilltools.Summary) string {
+func buildSkillSummarySection(summaries []skilltools.Summary) string {
 	var builder strings.Builder
 
 	builder.WriteString("Available skills:\n")

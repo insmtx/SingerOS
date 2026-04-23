@@ -11,11 +11,9 @@ import (
 	auth "github.com/insmtx/SingerOS/backend/auth"
 	"github.com/insmtx/SingerOS/backend/config"
 	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
-	"github.com/insmtx/SingerOS/backend/toolruntime"
-	"github.com/insmtx/SingerOS/backend/tools"
 )
 
-func TestGitHubPublishReviewToolThroughRuntime(t *testing.T) {
+func TestGitHubPublishReviewToolExecute(t *testing.T) {
 	store := auth.NewInMemoryStore()
 	resolver := auth.NewAccountResolver(store)
 	authService := auth.NewService(store, resolver)
@@ -77,35 +75,30 @@ func TestGitHubPublishReviewToolThroughRuntime(t *testing.T) {
 		t.Fatalf("set default account: %v", err)
 	}
 
-	registry := tools.NewRegistry()
-	mustRegisterTool(t, registry, NewPullRequestReviewPublishTool(nil))
-
-	runtime := toolruntime.New(registry, factory)
-	result, err := runtime.Execute(context.Background(), &toolruntime.ExecuteRequest{
-		ToolName: ToolNamePublishPullRequestReview,
-		UserID:   "u1",
-		Input: map[string]interface{}{
-			"repo":      "insmtx/SingerOS",
-			"pr_number": 12,
-			"body":      "This change is safe to merge.",
-			"event":     "COMMENT",
-		},
+	tool := NewPullRequestReviewPublishTool(factory)
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"user_id":   "u1",
+		"repo":      "insmtx/SingerOS",
+		"pr_number": 12,
+		"body":      "This change is safe to merge.",
+		"event":     "COMMENT",
 	})
 	if err != nil {
 		t.Fatalf("execute publish review tool: %v", err)
 	}
 
-	review, ok := result.Output["review"].(map[string]interface{})
+	output := decodeGitHubToolOutput(t, result)
+	review, ok := output["review"].(map[string]interface{})
 	if !ok {
-		t.Fatalf("unexpected publish review output: %+v", result.Output)
+		t.Fatalf("unexpected publish review output: %+v", output)
 	}
-	if review["id"] != int64(9001) {
+	if review["id"] != float64(9001) {
 		t.Fatalf("unexpected review id: %+v", review)
 	}
 	if review["state"] != "COMMENTED" {
 		t.Fatalf("unexpected review state: %+v", review)
 	}
-	if result.Output["event"] != "COMMENT" {
-		t.Fatalf("unexpected event: %+v", result.Output)
+	if output["event"] != "COMMENT" {
+		t.Fatalf("unexpected event: %+v", output)
 	}
 }

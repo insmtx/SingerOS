@@ -11,11 +11,9 @@ import (
 	auth "github.com/insmtx/SingerOS/backend/auth"
 	"github.com/insmtx/SingerOS/backend/config"
 	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
-	"github.com/insmtx/SingerOS/backend/toolruntime"
-	"github.com/insmtx/SingerOS/backend/tools"
 )
 
-func TestCompareCommitsToolThroughRuntime(t *testing.T) {
+func TestCompareCommitsToolExecute(t *testing.T) {
 	store := auth.NewInMemoryStore()
 	resolver := auth.NewAccountResolver(store)
 	authService := auth.NewService(store, resolver)
@@ -96,32 +94,27 @@ func TestCompareCommitsToolThroughRuntime(t *testing.T) {
 		t.Fatalf("set default account: %v", err)
 	}
 
-	registry := tools.NewRegistry()
-	mustRegisterTool(t, registry, NewCompareCommitsTool(nil))
-
-	runtime := toolruntime.New(registry, factory)
-	result, err := runtime.Execute(context.Background(), &toolruntime.ExecuteRequest{
-		ToolName: ToolNameCompareCommits,
-		UserID:   "u1",
-		Input: map[string]interface{}{
-			"repo": "insmtx/SingerOS",
-			"base": "abc123",
-			"head": "def456",
-		},
+	tool := NewCompareCommitsTool(factory)
+	result, err := tool.Execute(context.Background(), map[string]interface{}{
+		"user_id": "u1",
+		"repo":    "insmtx/SingerOS",
+		"base":    "abc123",
+		"head":    "def456",
 	})
 	if err != nil {
 		t.Fatalf("execute compare commits tool: %v", err)
 	}
 
-	comparison, ok := result.Output["comparison"].(map[string]interface{})
+	output := decodeGitHubToolOutput(t, result)
+	comparison, ok := output["comparison"].(map[string]interface{})
 	if !ok || comparison["status"] != "ahead" {
-		t.Fatalf("unexpected comparison output: %+v", result.Output)
+		t.Fatalf("unexpected comparison output: %+v", output)
 	}
-	files, ok := result.Output["files"].([]map[string]interface{})
+	files, ok := output["files"].([]map[string]interface{})
 	if !ok {
-		rawFiles, rawOK := result.Output["files"].([]interface{})
+		rawFiles, rawOK := output["files"].([]interface{})
 		if !rawOK || len(rawFiles) != 1 {
-			t.Fatalf("unexpected files output: %+v", result.Output)
+			t.Fatalf("unexpected files output: %+v", output)
 		}
 		file, _ := rawFiles[0].(map[string]interface{})
 		if file["filename"] != "backend/runtime/eino_runner.go" {

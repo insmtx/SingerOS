@@ -12,9 +12,6 @@ import (
 )
 
 const (
-	// ProviderSkill identifies tools that operate on SingerOS skill documents.
-	ProviderSkill = "skill"
-
 	// ToolNameSkillUse is the runtime tool used to discover and load skill documents.
 	ToolNameSkillUse = "skill_use"
 )
@@ -40,44 +37,41 @@ type SkillCatalog interface {
 
 // SkillUseTool lets an agent query and load skills from the runtime skill catalog.
 type SkillUseTool struct {
+	tools.BaseTool
 	catalog SkillCatalog
 }
 
 // NewSkillUseTool creates a catalog-backed skill use tool.
 func NewSkillUseTool(catalog SkillCatalog) *SkillUseTool {
-	return &SkillUseTool{catalog: catalog}
-}
-
-// Info returns metadata for the skill use tool.
-func (t *SkillUseTool) Info() *tools.ToolInfo {
-	return &tools.ToolInfo{
-		Name: ToolNameSkillUse,
-		Description: strings.Join([]string{
-			"管理和使用技能（Skill）。",
-			"支持 list 列出所有可用技能，get 获取指定技能完整内容和可注入上下文，read_file 读取技能目录下的附加文件。",
-			"当任务需要查看、选择或加载技能说明时调用此工具。",
-		}, ""),
-		Provider: ProviderSkill,
-		ReadOnly: true,
-		InputSchema: &tools.Schema{
-			Type:     "object",
-			Required: []string{"action"},
-			Properties: map[string]*tools.Property{
-				"action": {
-					Type:        "string",
-					Enum:        []string{actionList, actionGet, actionReadFile},
-					Description: "操作类型：list 列出技能，get 获取技能正文，read_file 读取技能目录下的文件",
-				},
-				"name": {
-					Type:        "string",
-					Description: "技能名称，get 和 read_file 时必填",
-				},
-				"path": {
-					Type:        "string",
-					Description: "技能目录内的相对文件路径，read_file 时必填",
+	return &SkillUseTool{
+		BaseTool: tools.NewBaseTool(
+			ToolNameSkillUse,
+			strings.Join([]string{
+				"管理和使用技能（Skill）。",
+				"支持 list 列出所有可用技能，get 获取指定技能完整内容和可注入上下文，read_file 读取技能目录下的附加文件。",
+				"当任务需要查看、选择或加载技能说明时调用此工具。",
+			}, ""),
+			tools.Schema{
+				Type:     "object",
+				Required: []string{"action"},
+				Properties: map[string]*tools.Property{
+					"action": {
+						Type:        "string",
+						Enum:        []string{actionList, actionGet, actionReadFile},
+						Description: "操作类型：list 列出技能，get 获取技能正文，read_file 读取技能目录下的文件",
+					},
+					"name": {
+						Type:        "string",
+						Description: "技能名称，get 和 read_file 时必填",
+					},
+					"path": {
+						Type:        "string",
+						Description: "技能目录内的相对文件路径，read_file 时必填",
+					},
 				},
 			},
-		},
+		),
+		catalog: catalog,
 	}
 }
 
@@ -112,29 +106,29 @@ func (t *SkillUseTool) Validate(input map[string]interface{}) error {
 }
 
 // Execute performs the requested skill catalog action.
-func (t *SkillUseTool) Execute(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
+func (t *SkillUseTool) Execute(ctx context.Context, input map[string]interface{}) (string, error) {
 	if err := t.Validate(input); err != nil {
-		return nil, err
+		return "", err
 	}
 	if t == nil || t.catalog == nil {
-		return nil, fmt.Errorf("skill catalog is required")
+		return "", fmt.Errorf("skill catalog is required")
 	}
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return "", ctx.Err()
 	default:
 	}
 
 	switch stringValue(input, "action") {
 	case actionList:
-		return t.listSkills(), nil
+		return tools.JSONString(t.listSkills())
 	case actionGet:
-		return t.getSkill(stringValue(input, "name")), nil
+		return tools.JSONString(t.getSkill(stringValue(input, "name")))
 	case actionReadFile:
-		return t.readSkillFile(stringValue(input, "name"), stringValue(input, "path")), nil
+		return tools.JSONString(t.readSkillFile(stringValue(input, "name"), stringValue(input, "path")))
 	default:
-		return nil, fmt.Errorf("unsupported action %q", stringValue(input, "action"))
+		return "", fmt.Errorf("unsupported action %q", stringValue(input, "action"))
 	}
 }
 

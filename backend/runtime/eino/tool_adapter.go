@@ -9,9 +9,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	einoschema "github.com/cloudwego/eino/schema"
-	auth "github.com/insmtx/SingerOS/backend/auth"
 	runtimeevents "github.com/insmtx/SingerOS/backend/runtime/events"
-	"github.com/insmtx/SingerOS/backend/toolruntime"
 	"github.com/insmtx/SingerOS/backend/tools"
 )
 
@@ -23,49 +21,38 @@ import (
 type ToolDefinition struct {
 	Name        string
 	Description string
-	Provider    string
-	ReadOnly    bool
-	InputSchema *tools.Schema
+	InputSchema tools.Schema
 }
 
 // ToolCallRequest describes one model-initiated tool call.
 type ToolCallRequest struct {
-	Selector  *auth.AuthSelector
-	Name      string
-	UserID    string
-	AccountID string
-	Arguments map[string]interface{}
+	Name        string
+	Arguments   map[string]interface{}
+	ToolContext tools.ToolContext
 }
 
 // ToolCallResult contains the execution result returned back to the model loop.
 type ToolCallResult struct {
-	Name              string
-	Output            map[string]interface{}
-	ResolvedAccountID string
-	ResolvedBy        string
+	Name   string
+	Output string
 }
 
-// ToolAdapter bridges SingerOS tool registry/runtime to an Eino-facing API.
+// ToolAdapter bridges SingerOS tool registry to an Eino-facing API.
 type ToolAdapter struct {
 	registry *tools.Registry
-	runtime  *toolruntime.Runtime
 }
 
 // ToolBinding carries runtime-bound identity for one Eino agent execution.
 type ToolBinding struct {
-	Selector     *auth.AuthSelector
-	UserID       string
-	AccountID    string
+	ToolContext  tools.ToolContext
 	AllowedTools []string
 	Emitter      *runtimeevents.Emitter
-	EmitToolIO   bool
 }
 
-// NewToolAdapter creates a new adapter over the shared tool registry and runtime.
-func NewToolAdapter(registry *tools.Registry, runtime *toolruntime.Runtime) *ToolAdapter {
+// NewToolAdapter creates a new adapter over the shared tool registry.
+func NewToolAdapter(registry *tools.Registry) *ToolAdapter {
 	return &ToolAdapter{
 		registry: registry,
-		runtime:  runtime,
 	}
 }
 
@@ -75,15 +62,13 @@ func (a *ToolAdapter) Definitions() []ToolDefinition {
 		return nil
 	}
 
-	infos := a.registry.ListInfos()
-	definitions := make([]ToolDefinition, 0, len(infos))
-	for _, info := range infos {
+	registeredTools := a.registry.List()
+	definitions := make([]ToolDefinition, 0, len(registeredTools))
+	for _, tool := range registeredTools {
 		definitions = append(definitions, ToolDefinition{
-			Name:        info.Name,
-			Description: info.Description,
-			Provider:    info.Provider,
-			ReadOnly:    info.ReadOnly,
-			InputSchema: info.InputSchema,
+			Name:        tool.Name(),
+			Description: tool.Description(),
+			InputSchema: tool.InputSchema(),
 		})
 	}
 
@@ -96,17 +81,20 @@ func (a *ToolAdapter) EinoTools(binding ToolBinding) ([]einotool.BaseTool, error
 		return nil, nil
 	}
 
-	infos, err := a.boundToolInfos(binding.AllowedTools)
+	boundTools, err := a.boundTools(binding.AllowedTools)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]einotool.BaseTool, 0, len(infos))
-	for _, info := range infos {
-		toolInfo := info
+	result := make([]einotool.BaseTool, 0, len(boundTools))
+	for _, tool := range boundTools {
+		boundTool, err := tools.BindToolContext(tool, binding.ToolContext)
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, &invokableTool{
 			adapter: a,
-			info:    &toolInfo,
+			tool:    boundTool,
 			binding: binding,
 		})
 	}
@@ -114,12 +102,12 @@ func (a *ToolAdapter) EinoTools(binding ToolBinding) ([]einotool.BaseTool, error
 	return result, nil
 }
 
-func (a *ToolAdapter) boundToolInfos(allowedTools []string) ([]tools.ToolInfo, error) {
+func (a *ToolAdapter) boundTools(allowedTools []string) ([]tools.Tool, error) {
 	if len(allowedTools) == 0 {
-		return a.registry.ListInfos(), nil
+		return a.registry.List(), nil
 	}
 
-	infos := make([]tools.ToolInfo, 0, len(allowedTools))
+	result := make([]tools.Tool, 0, len(allowedTools))
 	seen := make(map[string]struct{}, len(allowedTools))
 	for _, name := range allowedTools {
 		name = strings.TrimSpace(name)
@@ -135,17 +123,13 @@ func (a *ToolAdapter) boundToolInfos(allowedTools []string) ([]tools.ToolInfo, e
 		if err != nil {
 			return nil, err
 		}
-		info := tool.Info()
-		if info == nil {
-			return nil, fmt.Errorf("tool %s info is required", name)
-		}
-		infos = append(infos, *info)
+		result = append(result, tool)
 	}
 
-	return infos, nil
+	return result, nil
 }
 
-// Invoke executes a tool call through SingerOS Tool Runtime.
+// Invoke executes a tool call through the registry-backed adapter.
 func (a *ToolAdapter) Invoke(ctx context.Context, req *ToolCallRequest) (*ToolCallResult, error) {
 	if req == nil {
 		return nil, fmt.Errorf("tool call request is required")
@@ -153,45 +137,58 @@ func (a *ToolAdapter) Invoke(ctx context.Context, req *ToolCallRequest) (*ToolCa
 	if req.Name == "" {
 		return nil, fmt.Errorf("tool name is required")
 	}
-	if a == nil || a.runtime == nil {
-		return nil, fmt.Errorf("tool runtime is required")
+	if a == nil || a.registry == nil {
+		return nil, fmt.Errorf("tool registry is required")
 	}
 
-	result, err := a.runtime.Execute(ctx, &toolruntime.ExecuteRequest{
-		ToolName:  req.Name,
-		Selector:  req.Selector,
-		UserID:    req.UserID,
-		AccountID: req.AccountID,
-		Input:     req.Arguments,
-	})
+	tool, err := a.registry.Get(req.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	callResult := &ToolCallResult{
-		Name:       result.ToolName,
-		Output:     result.Output,
-		ResolvedBy: result.ResolvedBy,
+	boundTool, err := tools.BindToolContext(tool, req.ToolContext)
+	if err != nil {
+		return nil, err
 	}
-	if result.ResolvedAccount != nil {
-		callResult.ResolvedAccountID = result.ResolvedAccount.ID
+	return invokeTool(ctx, boundTool, req.Arguments, req.ToolContext)
+}
+
+func invokeTool(ctx context.Context, tool tools.Tool, arguments map[string]interface{}, toolCtx tools.ToolContext) (*ToolCallResult, error) {
+	if tool == nil {
+		return nil, fmt.Errorf("tool is required")
 	}
 
-	return callResult, nil
+	input := cloneToolInput(arguments)
+	applyLegacyIdentityInput(input, toolCtx)
+	if validator, ok := tool.(tools.Validator); ok {
+		if err := validator.Validate(input); err != nil {
+			return nil, fmt.Errorf("validate tool %s input: %w", tool.Name(), err)
+		}
+	}
+
+	output, err := tool.Execute(tools.ContextWithToolContext(ctx, toolCtx), input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ToolCallResult{
+		Name:   tool.Name(),
+		Output: output,
+	}, nil
 }
 
 type invokableTool struct {
 	adapter *ToolAdapter
-	info    *tools.ToolInfo
+	tool    tools.Tool
 	binding ToolBinding
 }
 
 func (t *invokableTool) Info(ctx context.Context) (*einoschema.ToolInfo, error) {
-	if t == nil || t.info == nil {
-		return nil, fmt.Errorf("tool info is required")
+	if t == nil || t.tool == nil {
+		return nil, fmt.Errorf("tool is required")
 	}
 
-	return toEinoToolInfo(t.info), nil
+	return toEinoToolInfo(t.tool), nil
 }
 
 func (t *invokableTool) InvokableRun(ctx context.Context, argumentsInJSON string, _ ...einotool.Option) (string, error) {
@@ -208,44 +205,34 @@ func (t *invokableTool) InvokableRun(ctx context.Context, argumentsInJSON string
 
 	startedAt := time.Now()
 	if err := t.emitToolEvent(ctx, runtimeevents.RunEventToolCallStarted, eventContentJSON(map[string]any{
-		"name":      t.info.Name,
+		"name":      t.tool.Name(),
 		"arguments": cloneArguments(input),
 	})); err != nil {
 		return "", err
 	}
 
-	result, err := t.adapter.Invoke(ctx, &ToolCallRequest{
-		Selector:  t.binding.Selector,
-		Name:      t.info.Name,
-		UserID:    t.binding.UserID,
-		AccountID: t.binding.AccountID,
-		Arguments: input,
-	})
+	result, err := invokeTool(ctx, t.tool, input, t.binding.ToolContext)
 	if err != nil {
 		_ = t.emitToolEvent(ctx, runtimeevents.RunEventToolCallFailed, eventContentJSON(map[string]any{
-			"name":       t.info.Name,
+			"name":       t.tool.Name(),
 			"elapsed_ms": time.Since(startedAt).Milliseconds(),
 		}))
 		return "", err
 	}
 
-	output, err := json.Marshal(result.Output)
-	if err != nil {
-		return "", fmt.Errorf("marshal tool output: %w", err)
-	}
 	if err := t.emitToolEvent(ctx, runtimeevents.RunEventToolCallCompleted, eventContentJSON(map[string]any{
-		"name":       t.info.Name,
+		"name":       t.tool.Name(),
 		"result":     result.Output,
 		"elapsed_ms": time.Since(startedAt).Milliseconds(),
 	})); err != nil {
 		return "", err
 	}
 
-	return string(output), nil
+	return result.Output, nil
 }
 
 func (t *invokableTool) emitToolEvent(ctx context.Context, eventType runtimeevents.RunEventType, content string) error {
-	if t == nil || t.binding.Emitter == nil || !t.binding.EmitToolIO {
+	if t == nil || t.binding.Emitter == nil {
 		return nil
 	}
 	err := t.binding.Emitter.Emit(ctx, &runtimeevents.RunEvent{
@@ -267,25 +254,47 @@ func cloneArguments(input map[string]interface{}) map[string]any {
 	return cloned
 }
 
-func toEinoToolInfo(info *tools.ToolInfo) *einoschema.ToolInfo {
-	if info == nil {
+func cloneToolInput(input map[string]interface{}) map[string]interface{} {
+	if input == nil {
+		return make(map[string]interface{})
+	}
+	cloned := make(map[string]interface{}, len(input))
+	for key, value := range input {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func applyLegacyIdentityInput(input map[string]interface{}, toolCtx tools.ToolContext) {
+	if input == nil {
+		return
+	}
+	if toolCtx.UserID != "" {
+		if _, exists := input["user_id"]; !exists {
+			input["user_id"] = toolCtx.UserID
+		}
+	}
+	if toolCtx.AccountID != "" {
+		if _, exists := input["account_id"]; !exists {
+			input["account_id"] = toolCtx.AccountID
+		}
+	}
+}
+
+func toEinoToolInfo(tool tools.Tool) *einoschema.ToolInfo {
+	if tool == nil {
 		return nil
 	}
 
 	params := make(map[string]*einoschema.ParameterInfo)
-	if info.InputSchema != nil {
-		for name, property := range info.InputSchema.Properties {
-			params[name] = toEinoParameterInfo(property, info.InputSchema.Required, name)
-		}
+	schema := tool.InputSchema()
+	for name, property := range schema.Properties {
+		params[name] = toEinoParameterInfo(property, schema.Required, name)
 	}
 
 	toolInfo := &einoschema.ToolInfo{
-		Name: info.Name,
-		Desc: info.Description,
-		Extra: map[string]any{
-			"provider":  info.Provider,
-			"read_only": info.ReadOnly,
-		},
+		Name: tool.Name(),
+		Desc: tool.Description(),
 	}
 	if len(params) > 0 {
 		toolInfo.ParamsOneOf = einoschema.NewParamsOneOfByParams(params)

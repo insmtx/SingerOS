@@ -16,35 +16,32 @@ const (
 
 // AccountInfoTool 读取当前 GitHub 授权账户信息。
 type AccountInfoTool struct {
+	tools.BaseTool
 	factory *githubprovider.ClientFactory
 }
 
 // NewAccountInfoTool 创建一个新的 GitHub 账户信息 Tool。
 func NewAccountInfoTool(factory *githubprovider.ClientFactory) *AccountInfoTool {
-	return &AccountInfoTool{factory: factory}
-}
-
-// Info 返回 Tool 元信息。
-func (t *AccountInfoTool) Info() *tools.ToolInfo {
-	return &tools.ToolInfo{
-		Name:        ToolNameGetCurrentUser,
-		Description: "读取当前已授权 GitHub 账户的用户信息",
-		Provider:    auth.ProviderGitHub,
-		ReadOnly:    true,
-		InputSchema: &tools.Schema{
-			Type:     "object",
-			Required: []string{"user_id"},
-			Properties: map[string]*tools.Property{
-				"user_id": {
-					Type:        "string",
-					Description: "SingerOS user id used to resolve the default GitHub account",
-				},
-				"account_id": {
-					Type:        "string",
-					Description: "Optional explicit authorized GitHub account id",
+	return &AccountInfoTool{
+		BaseTool: tools.NewBaseTool(
+			ToolNameGetCurrentUser,
+			"读取当前已授权 GitHub 账户的用户信息",
+			tools.Schema{
+				Type:     "object",
+				Required: []string{"user_id"},
+				Properties: map[string]*tools.Property{
+					"user_id": {
+						Type:        "string",
+						Description: "SingerOS user id used to resolve the default GitHub account",
+					},
+					"account_id": {
+						Type:        "string",
+						Description: "Optional explicit authorized GitHub account id",
+					},
 				},
 			},
-		},
+		),
+		factory: factory,
 	}
 }
 
@@ -70,12 +67,12 @@ func (t *AccountInfoTool) Validate(input map[string]interface{}) error {
 }
 
 // Execute 执行 GitHub 账户信息读取。
-func (t *AccountInfoTool) Execute(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
+func (t *AccountInfoTool) Execute(ctx context.Context, input map[string]interface{}) (string, error) {
 	if t.factory == nil {
-		return nil, fmt.Errorf("tool runtime execution context is required")
+		return "", fmt.Errorf("github client factory is required")
 	}
 	if err := t.Validate(input); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	userID := input["user_id"].(string)
@@ -86,44 +83,19 @@ func (t *AccountInfoTool) Execute(ctx context.Context, input map[string]interfac
 		AccountID: accountID,
 	})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	return t.buildResult(ctx, resolved)
 }
 
-// ExecuteWithContext consumes a runtime-injected GitHub client instead of resolving credentials inside the tool.
-func (t *AccountInfoTool) ExecuteWithContext(ctx context.Context, execCtx *tools.ExecutionContext, input map[string]interface{}) (map[string]interface{}, error) {
-	if execCtx == nil {
-		return nil, fmt.Errorf("execution context is required")
-	}
-	if err := t.Validate(input); err != nil {
-		return nil, err
-	}
-	if execCtx.Resources == nil {
-		return nil, fmt.Errorf("execution resources are required")
-	}
-
-	resolvedAny, ok := execCtx.Resources[tools.ResourceGitHubResolvedClient]
-	if !ok || resolvedAny == nil {
-		return nil, fmt.Errorf("resolved github client is required")
-	}
-
-	resolved, ok := resolvedAny.(*githubprovider.ResolvedClient)
-	if !ok {
-		return nil, fmt.Errorf("invalid resolved github client resource")
-	}
-
-	return t.buildResult(ctx, resolved)
-}
-
-func (t *AccountInfoTool) buildResult(ctx context.Context, resolved *githubprovider.ResolvedClient) (map[string]interface{}, error) {
+func (t *AccountInfoTool) buildResult(ctx context.Context, resolved *githubprovider.ResolvedClient) (string, error) {
 	user, _, err := resolved.Client.Users.Get(ctx, "")
 	if err != nil {
-		return nil, fmt.Errorf("get github current user: %w", err)
+		return "", fmt.Errorf("get github current user: %w", err)
 	}
 
-	return map[string]interface{}{
+	return tools.JSONString(map[string]interface{}{
 		"provider":    auth.ProviderGitHub,
 		"resolved_by": resolved.ResolvedBy,
 		"authorized_account": map[string]interface{}{
@@ -150,5 +122,5 @@ func (t *AccountInfoTool) buildResult(ctx context.Context, resolved *githubprovi
 			"followers":    user.GetFollowers(),
 			"following":    user.GetFollowing(),
 		},
-	}, nil
+	})
 }

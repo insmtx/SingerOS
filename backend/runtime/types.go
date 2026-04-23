@@ -57,10 +57,7 @@ type RequestContext struct {
 	// Policy 描述本次运行需要遵守的策略约束。
 	Policy PolicyContext `json:"policy,omitempty"`
 
-	// WorkNode 是本次运行绑定的工作节点上下文，通常用于 shell、代码或远程执行。
-	WorkNode *WorkNodeContext `json:"work_node,omitempty"`
-
-	// Metadata 存放调用方透传的扩展信息，runtime 不应依赖其中的强业务语义。
+	// Metadata 存放调用方透传的扩展信息
 	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// EventSink 接收运行过程中的流式事件，不参与 JSON 序列化。
@@ -187,18 +184,6 @@ type PolicyContext struct {
 	RequireApproval bool `json:"require_approval,omitempty"`
 }
 
-// WorkNodeContext describes a bound work node for code/shell execution.
-type WorkNodeContext struct {
-	// ID 是工作节点标识。
-	ID string `json:"id,omitempty"`
-
-	// Name 是工作节点展示名称。
-	Name string `json:"name,omitempty"`
-
-	// Status 是工作节点当前状态。
-	Status string `json:"status,omitempty"`
-}
-
 // RunStatus is the final status returned from Run.
 type RunStatus string
 
@@ -268,7 +253,6 @@ const (
 	RunEventFailed            = runtimeevents.RunEventFailed
 	RunEventCancelled         = runtimeevents.RunEventCancelled
 	RunEventMessageDelta      = runtimeevents.RunEventMessageDelta
-	RunEventMessageSnapshot   = runtimeevents.RunEventMessageSnapshot
 	RunEventReasoningDelta    = runtimeevents.RunEventReasoningDelta
 	RunEventToolCallStarted   = runtimeevents.RunEventToolCallStarted
 	RunEventToolCallArguments = runtimeevents.RunEventToolCallArguments

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	gogithub "github.com/google/go-github/v78/github"
-	auth "github.com/insmtx/SingerOS/backend/auth"
 	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
 	"github.com/insmtx/SingerOS/backend/tools"
 )
@@ -13,37 +12,35 @@ import (
 const ToolNameCompareCommits = "github.repo.compare_commits"
 
 type CompareCommitsTool struct {
+	tools.BaseTool
 	factory *githubprovider.ClientFactory
 }
 
 func NewCompareCommitsTool(factory *githubprovider.ClientFactory) *CompareCommitsTool {
-	return &CompareCommitsTool{factory: factory}
-}
-
-func (t *CompareCommitsTool) Info() *tools.ToolInfo {
-	return &tools.ToolInfo{
-		Name:        ToolNameCompareCommits,
-		Description: "Compare two Git references in a GitHub repository and return commit and changed-file details",
-		Provider:    auth.ProviderGitHub,
-		ReadOnly:    true,
-		InputSchema: &tools.Schema{
-			Type:     "object",
-			Required: []string{"repo", "base", "head"},
-			Properties: map[string]*tools.Property{
-				"repo": {
-					Type:        "string",
-					Description: "Repository full name in owner/name format",
-				},
-				"base": {
-					Type:        "string",
-					Description: "Base branch or commit SHA",
-				},
-				"head": {
-					Type:        "string",
-					Description: "Head branch or commit SHA",
+	return &CompareCommitsTool{
+		BaseTool: tools.NewBaseTool(
+			ToolNameCompareCommits,
+			"Compare two Git references in a GitHub repository and return commit and changed-file details",
+			tools.Schema{
+				Type:     "object",
+				Required: []string{"repo", "base", "head"},
+				Properties: map[string]*tools.Property{
+					"repo": {
+						Type:        "string",
+						Description: "Repository full name in owner/name format",
+					},
+					"base": {
+						Type:        "string",
+						Description: "Base branch or commit SHA",
+					},
+					"head": {
+						Type:        "string",
+						Description: "Head branch or commit SHA",
+					},
 				},
 			},
-		},
+		),
+		factory: factory,
 	}
 }
 
@@ -69,36 +66,25 @@ func (t *CompareCommitsTool) Validate(input map[string]interface{}) error {
 	return nil
 }
 
-func (t *CompareCommitsTool) Execute(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
+func (t *CompareCommitsTool) Execute(ctx context.Context, input map[string]interface{}) (string, error) {
 	if err := t.Validate(input); err != nil {
-		return nil, err
+		return "", err
 	}
 	resolved, err := resolveClientDirect(ctx, t.factory, input)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	return t.buildResult(ctx, resolved, input)
 }
 
-func (t *CompareCommitsTool) ExecuteWithContext(ctx context.Context, execCtx *tools.ExecutionContext, input map[string]interface{}) (map[string]interface{}, error) {
-	if err := t.Validate(input); err != nil {
-		return nil, err
-	}
-	resolved, err := resolveClientFromContext(execCtx)
-	if err != nil {
-		return nil, err
-	}
-	return t.buildResult(ctx, resolved, input)
-}
-
-func (t *CompareCommitsTool) buildResult(ctx context.Context, resolved *githubprovider.ResolvedClient, input map[string]interface{}) (map[string]interface{}, error) {
+func (t *CompareCommitsTool) buildResult(ctx context.Context, resolved *githubprovider.ResolvedClient, input map[string]interface{}) (string, error) {
 	owner, repo, _ := parseRepo(input["repo"].(string))
 	base := input["base"].(string)
 	head := input["head"].(string)
 
 	comparison, _, err := resolved.Client.Repositories.CompareCommits(ctx, owner, repo, base, head, &gogithub.ListOptions{PerPage: 100})
 	if err != nil {
-		return nil, fmt.Errorf("compare github commits: %w", err)
+		return "", fmt.Errorf("compare github commits: %w", err)
 	}
 
 	files := make([]map[string]interface{}, 0, len(comparison.Files))
@@ -130,7 +116,7 @@ func (t *CompareCommitsTool) buildResult(ctx context.Context, resolved *githubpr
 		})
 	}
 
-	return map[string]interface{}{
+	return tools.JSONString(map[string]interface{}{
 		"repo": input["repo"],
 		"base": base,
 		"head": head,
@@ -147,5 +133,5 @@ func (t *CompareCommitsTool) buildResult(ctx context.Context, resolved *githubpr
 		},
 		"commits": commits,
 		"files":   files,
-	}, nil
+	})
 }

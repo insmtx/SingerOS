@@ -256,7 +256,7 @@ func buildTooling(cfg *config.Config, catalog *skilltools.Catalog) (*tools.Regis
 		}
 	}
 
-	logs.Infof("Loaded %d tools for runtime", len(registry.ListInfos()))
+	logs.Infof("Loaded %d tools for runtime", len(registry.List()))
 
 	return registry, nil
 }

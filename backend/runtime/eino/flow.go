@@ -13,7 +13,6 @@ import (
 	einoreact "github.com/cloudwego/eino/flow/agent/react"
 	einoschema "github.com/cloudwego/eino/schema"
 	runtimeevents "github.com/insmtx/SingerOS/backend/runtime/events"
-	runtimeprompt "github.com/insmtx/SingerOS/backend/runtime/prompt"
 )
 
 // Flow wraps the Eino agent loop used by the SingerOS runtime agent.
@@ -27,8 +26,6 @@ type FlowConfig struct {
 	ToolAdapter  *ToolAdapter
 	Binding      ToolBinding
 	SystemPrompt string
-	Skills       *runtimeprompt.SkillsContext
-	Tools        *runtimeprompt.ToolsContext
 	MaxStep      int
 }
 
@@ -59,7 +56,7 @@ func NewFlow(ctx context.Context, cfg *FlowConfig) (*Flow, error) {
 		ToolsConfig: compose.ToolsNodeConfig{
 			Tools: toolList,
 		},
-		MessageModifier: buildMessageModifier(cfg.SystemPrompt, cfg.Skills, cfg.Tools),
+		MessageModifier: buildMessageModifier(cfg.SystemPrompt),
 		StreamToolCallChecker: func(_ context.Context, sr *einoschema.StreamReader[*einoschema.Message]) (bool, error) {
 			defer sr.Close()
 			hasTool := false
@@ -153,10 +150,6 @@ func emitMessageChunk(ctx context.Context, emitter *runtimeevents.Emitter, chunk
 			Type:    runtimeevents.RunEventMessageDelta,
 			Content: chunk.Content,
 		})
-		_ = emitter.Emit(ctx, &runtimeevents.RunEvent{
-			Type:    runtimeevents.RunEventMessageSnapshot,
-			Content: contentSnapshot.String(),
-		})
 	}
 	if chunk.ReasoningContent != "" {
 		reasoningSnapshot.WriteString(chunk.ReasoningContent)
@@ -190,30 +183,13 @@ func eventContentJSON(value interface{}) string {
 	return string(encoded)
 }
 
-func buildMessageModifier(systemPrompt string, skills *runtimeprompt.SkillsContext, tools *runtimeprompt.ToolsContext) einoreact.MessageModifier {
-	sections := make([]string, 0, 4)
-	if trimmed := strings.TrimSpace(systemPrompt); trimmed != "" {
-		sections = append(sections, trimmed)
-	}
-	if skills != nil && strings.TrimSpace(skills.SummarySection) != "" {
-		sections = append(sections, skills.SummarySection)
-	}
-	if tools != nil && strings.TrimSpace(tools.SummarySection) != "" {
-		sections = append(sections, tools.SummarySection)
-	}
-	if skills != nil {
-		for _, section := range skills.AlwaysSections {
-			if trimmed := strings.TrimSpace(section); trimmed != "" {
-				sections = append(sections, trimmed)
-			}
-		}
-	}
-
-	if len(sections) == 0 {
+func buildMessageModifier(systemPrompt string) einoreact.MessageModifier {
+	prompt := strings.TrimSpace(systemPrompt)
+	if prompt == "" {
 		return nil
 	}
 
-	systemMessage := einoschema.SystemMessage(strings.Join(sections, "\n\n"))
+	systemMessage := einoschema.SystemMessage(prompt)
 	return func(ctx context.Context, input []*einoschema.Message) []*einoschema.Message {
 		messages := make([]*einoschema.Message, 0, len(input)+1)
 		messages = append(messages, systemMessage)

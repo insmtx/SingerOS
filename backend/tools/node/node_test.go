@@ -2,6 +2,7 @@ package nodetools
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -34,7 +35,7 @@ func TestNodeShellToolExecute(t *testing.T) {
 	}
 	tool := newNodeShellToolWithExecutor(executor)
 
-	output, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawOutput, err := tool.Execute(context.Background(), map[string]interface{}{
 		"container_id": "container-1",
 		"command":      "pwd",
 		"working_dir":  "/workspace/repo",
@@ -43,11 +44,12 @@ func TestNodeShellToolExecute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute node shell tool: %v", err)
 	}
+	output := decodeNodeToolOutput(t, rawOutput)
 
-	if output["exit_code"] != 0 {
+	if output["exit_code"] != float64(0) {
 		t.Fatalf("expected exit code 0, got %#v", output["exit_code"])
 	}
-	if output["timeout"] != minShellTimeout {
+	if output["timeout"] != float64(minShellTimeout) {
 		t.Fatalf("expected clamped timeout %d, got %#v", minShellTimeout, output["timeout"])
 	}
 	if len(executor.calls) != 1 {
@@ -75,7 +77,7 @@ func TestNodeFileReadToolExecute(t *testing.T) {
 	}
 	tool := newNodeFileReadToolWithExecutor(executor)
 
-	output, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawOutput, err := tool.Execute(context.Background(), map[string]interface{}{
 		"container_id": "container-1",
 		"path":         "/workspace/app/main.go",
 		"offset":       3,
@@ -84,11 +86,12 @@ func TestNodeFileReadToolExecute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute node file read tool: %v", err)
 	}
+	output := decodeNodeToolOutput(t, rawOutput)
 
 	if output["content"] != "alpha\nbeta" {
 		t.Fatalf("unexpected content: %#v", output["content"])
 	}
-	if output["shown_start"] != 3 || output["shown_end"] != 4 {
+	if output["shown_start"] != float64(3) || output["shown_end"] != float64(4) {
 		t.Fatalf("unexpected shown range: %v-%v", output["shown_start"], output["shown_end"])
 	}
 	numbered := output["numbered_content"].(string)
@@ -112,7 +115,7 @@ func TestNodeFileWriteToolExecute(t *testing.T) {
 	}
 	tool := newNodeFileWriteToolWithExecutor(executor)
 
-	output, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawOutput, err := tool.Execute(context.Background(), map[string]interface{}{
 		"container_id": "container-1",
 		"path":         "/workspace/app/main.go",
 		"content":      "package main\n",
@@ -121,11 +124,12 @@ func TestNodeFileWriteToolExecute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute node file write tool: %v", err)
 	}
+	output := decodeNodeToolOutput(t, rawOutput)
 
 	if output["action"] != "appended" {
 		t.Fatalf("unexpected action: %#v", output["action"])
 	}
-	if output["line_count"] != 1 {
+	if output["line_count"] != float64(1) {
 		t.Fatalf("unexpected line count: %#v", output["line_count"])
 	}
 	if len(executor.calls) != 2 {
@@ -137,4 +141,14 @@ func TestNodeFileWriteToolExecute(t *testing.T) {
 	if !strings.Contains(executor.calls[1].Args[2], "tee -a '/workspace/app/main.go'") {
 		t.Fatalf("unexpected tee command: %s", executor.calls[1].Args[2])
 	}
+}
+
+func decodeNodeToolOutput(t *testing.T, output string) map[string]interface{} {
+	t.Helper()
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("decode node tool output: %v\n%s", err, output)
+	}
+	return decoded
 }

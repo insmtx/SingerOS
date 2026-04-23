@@ -12,7 +12,6 @@ import (
 	auth "github.com/insmtx/SingerOS/backend/auth"
 	"github.com/insmtx/SingerOS/backend/config"
 	githubprovider "github.com/insmtx/SingerOS/backend/providers/github"
-	"github.com/insmtx/SingerOS/backend/toolruntime"
 	"github.com/insmtx/SingerOS/backend/tools"
 	githubtools "github.com/insmtx/SingerOS/backend/tools/github"
 )
@@ -79,11 +78,11 @@ func TestToolAdapterDefinitionsAndInvoke(t *testing.T) {
 	})
 
 	registry := tools.NewRegistry()
-	if err := registry.Register(githubtools.NewAccountInfoTool(nil)); err != nil {
+	if err := registry.Register(githubtools.NewAccountInfoTool(githubFactory)); err != nil {
 		t.Fatalf("register tool: %v", err)
 	}
 
-	adapter := NewToolAdapter(registry, toolruntime.New(registry, githubFactory))
+	adapter := NewToolAdapter(registry)
 
 	definitions := adapter.Definitions()
 	if len(definitions) != 1 {
@@ -92,11 +91,8 @@ func TestToolAdapterDefinitionsAndInvoke(t *testing.T) {
 	if definitions[0].Name != githubtools.ToolNameGetCurrentUser {
 		t.Fatalf("unexpected tool definition: %+v", definitions[0])
 	}
-	if !definitions[0].ReadOnly {
-		t.Fatalf("expected tool definition to be read-only")
-	}
 
-	einoTools, err := adapter.EinoTools(ToolBinding{UserID: "u1"})
+	einoTools, err := adapter.EinoTools(ToolBinding{ToolContext: tools.ToolContext{UserID: "u1"}})
 	if err != nil {
 		t.Fatalf("build eino tools: %v", err)
 	}
@@ -115,17 +111,22 @@ func TestToolAdapterDefinitionsAndInvoke(t *testing.T) {
 	}
 
 	result, err := adapter.Invoke(context.Background(), &ToolCallRequest{
-		Name:   githubtools.ToolNameGetCurrentUser,
-		UserID: "u1",
+		Name:        githubtools.ToolNameGetCurrentUser,
+		ToolContext: tools.ToolContext{UserID: "u1"},
 	})
 	if err != nil {
 		t.Fatalf("invoke tool adapter: %v", err)
 	}
-	if result.ResolvedAccountID != account.ID {
-		t.Fatalf("expected resolved account %s, got %s", account.ID, result.ResolvedAccountID)
-	}
 
-	githubUser, ok := result.Output["github_user"].(map[string]interface{})
+	output := decodeToolOutput(t, result.Output)
+	authorizedAccount, ok := output["authorized_account"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("authorized_account output missing")
+	}
+	if authorizedAccount["id"] != account.ID {
+		t.Fatalf("expected resolved account %s, got %v", account.ID, authorizedAccount["id"])
+	}
+	githubUser, ok := output["github_user"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("github_user output missing")
 	}
@@ -144,23 +145,17 @@ func TestToolAdapterDefinitionsAndInvoke(t *testing.T) {
 func TestToolAdapterEinoToolsAllowedTools(t *testing.T) {
 	registry := tools.NewRegistry()
 	if err := registry.Register(&mockTool{
-		info: &tools.ToolInfo{
-			Name:        "node_shell",
-			Description: "Execute shell command",
-		},
+		BaseTool: tools.NewBaseTool("node_shell", "Execute shell command", tools.Schema{}),
 	}); err != nil {
 		t.Fatalf("register node shell tool: %v", err)
 	}
 	if err := registry.Register(&mockTool{
-		info: &tools.ToolInfo{
-			Name:        "node_file_read",
-			Description: "Read file",
-		},
+		BaseTool: tools.NewBaseTool("node_file_read", "Read file", tools.Schema{}),
 	}); err != nil {
 		t.Fatalf("register node file read tool: %v", err)
 	}
 
-	adapter := NewToolAdapter(registry, toolruntime.New(registry, nil))
+	adapter := NewToolAdapter(registry)
 	einoTools, err := adapter.EinoTools(ToolBinding{
 		AllowedTools: []string{"node_file_read"},
 	})
@@ -184,4 +179,14 @@ type roundTripFunc func(req *http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func decodeToolOutput(t *testing.T, output string) map[string]interface{} {
+	t.Helper()
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("decode tool output: %v\n%s", err, output)
+	}
+	return decoded
 }

@@ -2,6 +2,7 @@ package skilltools
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,26 +14,28 @@ func TestSkillUseToolListAndGet(t *testing.T) {
 	catalog := newTestCatalog(t)
 	tool := NewSkillUseTool(catalog)
 
-	listResult, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawListResult, err := tool.Execute(context.Background(), map[string]interface{}{
 		"action": actionList,
 	})
 	if err != nil {
 		t.Fatalf("list skills failed: %v", err)
 	}
+	listResult := decodeSkillToolOutput(t, rawListResult)
 	if listResult["ok"] != true {
 		t.Fatalf("expected ok list result, got %#v", listResult)
 	}
-	if listResult["count"] != 1 {
+	if listResult["count"] != float64(1) {
 		t.Fatalf("expected 1 skill, got %#v", listResult["count"])
 	}
 
-	getResult, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawGetResult, err := tool.Execute(context.Background(), map[string]interface{}{
 		"action": actionGet,
 		"name":   "GITHUB-PR-REVIEW",
 	})
 	if err != nil {
 		t.Fatalf("get skill failed: %v", err)
 	}
+	getResult := decodeSkillToolOutput(t, rawGetResult)
 
 	skill, ok := getResult["skill"].(map[string]interface{})
 	if !ok {
@@ -60,7 +63,7 @@ func TestSkillUseToolListAndGet(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected metadata object, got %#v", getResult["metadata"])
 	}
-	files, ok := metadata["files"].([]string)
+	files, ok := metadata["files"].([]interface{})
 	if !ok || len(files) != 2 || files[0] != "references/large.md" || files[1] != "references/policy.md" {
 		t.Fatalf("unexpected metadata files: %#v", metadata["files"])
 	}
@@ -70,7 +73,7 @@ func TestSkillUseToolReadFile(t *testing.T) {
 	catalog := newTestCatalog(t)
 	tool := NewSkillUseTool(catalog)
 
-	result, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawResult, err := tool.Execute(context.Background(), map[string]interface{}{
 		"action": actionReadFile,
 		"name":   "github-pr-review",
 		"path":   "references/policy.md",
@@ -78,13 +81,14 @@ func TestSkillUseToolReadFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read skill file failed: %v", err)
 	}
+	result := decodeSkillToolOutput(t, rawResult)
 	if result["ok"] != true {
 		t.Fatalf("expected ok read result, got %#v", result)
 	}
 	if result["content"] != "policy content" {
 		t.Fatalf("unexpected file content: %#v", result["content"])
 	}
-	if result["size"] != len("policy content") {
+	if result["size"] != float64(len("policy content")) {
 		t.Fatalf("unexpected file size: %#v", result["size"])
 	}
 	if result["truncated"] != false {
@@ -96,7 +100,7 @@ func TestSkillUseToolReadFileTruncatesLargeContent(t *testing.T) {
 	catalog := newTestCatalog(t)
 	tool := NewSkillUseTool(catalog)
 
-	result, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawResult, err := tool.Execute(context.Background(), map[string]interface{}{
 		"action": actionReadFile,
 		"name":   "github-pr-review",
 		"path":   "references/large.md",
@@ -104,6 +108,7 @@ func TestSkillUseToolReadFileTruncatesLargeContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read large skill file failed: %v", err)
 	}
+	result := decodeSkillToolOutput(t, rawResult)
 	if result["ok"] != true {
 		t.Fatalf("expected ok read result, got %#v", result)
 	}
@@ -123,13 +128,14 @@ func TestSkillUseToolLoadsBundledWeatherSkillForWeatherQuery(t *testing.T) {
 	catalog := newBundledSkillsCatalog(t)
 	tool := NewSkillUseTool(catalog)
 
-	result, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawResult, err := tool.Execute(context.Background(), map[string]interface{}{
 		"action": actionGet,
 		"name":   "WEATHER",
 	})
 	if err != nil {
 		t.Fatalf("get weather skill failed: %v", err)
 	}
+	result := decodeSkillToolOutput(t, rawResult)
 	if result["ok"] != true {
 		t.Fatalf("expected ok weather skill result, got %#v", result)
 	}
@@ -165,18 +171,19 @@ func TestSkillUseToolMissingSkillReturnsAvailableNames(t *testing.T) {
 	catalog := newTestCatalog(t)
 	tool := NewSkillUseTool(catalog)
 
-	result, err := tool.Execute(context.Background(), map[string]interface{}{
+	rawResult, err := tool.Execute(context.Background(), map[string]interface{}{
 		"action": actionGet,
 		"name":   "missing",
 	})
 	if err != nil {
 		t.Fatalf("get missing skill should return structured result: %v", err)
 	}
+	result := decodeSkillToolOutput(t, rawResult)
 	if result["ok"] != false {
 		t.Fatalf("expected not found result, got %#v", result)
 	}
 
-	available, ok := result["available"].([]string)
+	available, ok := result["available"].([]interface{})
 	if !ok {
 		t.Fatalf("expected available skill names, got %#v", result["available"])
 	}
@@ -240,6 +247,16 @@ Read the pull request before reviewing.
 	}
 
 	return catalog
+}
+
+func decodeSkillToolOutput(t *testing.T, output string) map[string]interface{} {
+	t.Helper()
+
+	var decoded map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("decode skill tool output: %v\n%s", err, output)
+	}
+	return decoded
 }
 
 func newBundledSkillsCatalog(t *testing.T) *Catalog {
