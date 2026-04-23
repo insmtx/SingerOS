@@ -71,8 +71,8 @@
 
 - [x] Skill 接口定义
 - [x] 文件化技能支持 (SKILL.md)
-- [x] Catalog 扫描和加载
-- [x] PR Review 技能定义 (`backend/skills/bundled/github-pr-review/SKILL.md`)
+- [x] Catalog 扫描和加载 (`backend/tools/skill`)
+- [x] PR Review 技能定义 (`backend/skills/github-pr-review/SKILL.md`)
 
 ---
 
@@ -189,11 +189,11 @@
   - `compare.go`: Commit 对比
   - `common.go`: 通用工具函数
 
-### 5. Skills 系统 (`backend/skills/`)
+### 5. Skills 系统
 
-- `catalog/catalog.go`: Skills Catalog
-- `catalog/types.go`: Skill 元数据
-- `bundled/`: 内置技能
+- `backend/tools/skill/catalog.go`: Skills Catalog
+- `backend/tools/skill/types.go`: Skill 元数据
+- `backend/skills/`: 技能目录
   - `github-pr-review/SKILL.md`: PR Review 技能定义
 
 ### 6. Auth 系统 (`backend/auth/`)

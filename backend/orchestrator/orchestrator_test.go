@@ -78,6 +78,9 @@ type mockRunner struct{}
 
 var _ agentruntime.Runner = (*mockRunner)(nil)
 
-func (m *mockRunner) HandleEvent(ctx context.Context, event *interaction.Event) error {
-	return nil
+func (m *mockRunner) Run(ctx context.Context, req *agentruntime.RequestContext) (*agentruntime.RunResult, error) {
+	return &agentruntime.RunResult{
+		RunID:  req.RunID,
+		Status: agentruntime.RunStatusCompleted,
+	}, nil
 }

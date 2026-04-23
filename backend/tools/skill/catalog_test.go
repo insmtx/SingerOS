@@ -1,4 +1,4 @@
-package catalog
+package skilltools
 
 import (
 	"os"
@@ -37,7 +37,7 @@ Review steps here.
 		t.Fatalf("write reference failed: %v", err)
 	}
 
-	catalog, err := New(os.DirFS(rootDir))
+	catalog, err := NewCatalog(os.DirFS(rootDir))
 	if err != nil {
 		t.Fatalf("load catalog failed: %v", err)
 	}
@@ -73,6 +73,14 @@ Review steps here.
 	if string(referenceBody) != "policy content" {
 		t.Fatalf("unexpected reference body: %s", string(referenceBody))
 	}
+
+	files, err := catalog.ListFiles("github-pr-review", 10)
+	if err != nil {
+		t.Fatalf("list skill files failed: %v", err)
+	}
+	if len(files) != 1 || files[0] != "references/policy.md" {
+		t.Fatalf("unexpected skill files: %#v", files)
+	}
 }
 
 func TestCatalogDerivesNameWithoutFrontmatter(t *testing.T) {
@@ -86,7 +94,7 @@ func TestCatalogDerivesNameWithoutFrontmatter(t *testing.T) {
 		t.Fatalf("write skill failed: %v", err)
 	}
 
-	catalog, err := New(os.DirFS(rootDir))
+	catalog, err := NewCatalog(os.DirFS(rootDir))
 	if err != nil {
 		t.Fatalf("load catalog failed: %v", err)
 	}
@@ -111,7 +119,7 @@ func TestCatalogRejectsPathTraversal(t *testing.T) {
 		t.Fatalf("write skill failed: %v", err)
 	}
 
-	catalog, err := New(os.DirFS(rootDir))
+	catalog, err := NewCatalog(os.DirFS(rootDir))
 	if err != nil {
 		t.Fatalf("load catalog failed: %v", err)
 	}

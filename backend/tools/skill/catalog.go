@@ -1,8 +1,9 @@
-package catalog
+package skilltools
 
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
 	"slices"
 	"strings"
@@ -10,14 +11,48 @@ import (
 
 const skillFileName = "SKILL.md"
 
+var defaultSkillDirs = []string{
+	"./backend/skills",
+	"/app/backend/skills",
+}
+
 // Catalog stores discovered file-based skills for runtime prompt assembly.
 type Catalog struct {
 	fs      fs.FS
 	entries map[string]*Entry
 }
 
-// New creates a catalog by scanning the provided filesystem for SKILL.md files.
-func New(skillFS fs.FS) (*Catalog, error) {
+// LoadDefaultCatalog loads skills from the default SingerOS skill directory.
+func LoadDefaultCatalog() (*Catalog, string, error) {
+	candidates := defaultSkillDirs
+	if configured := strings.TrimSpace(os.Getenv("SINGEROS_SKILLS_DIR")); configured != "" {
+		candidates = append([]string{configured}, candidates...)
+	}
+
+	var lastErr error
+	for _, dir := range candidates {
+		if _, err := os.Stat(dir); err != nil {
+			lastErr = err
+			continue
+		}
+
+		catalog, err := NewCatalog(os.DirFS(dir))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		return catalog, dir, nil
+	}
+
+	if lastErr != nil {
+		return nil, "", fmt.Errorf("load skills from default directories: %w", lastErr)
+	}
+	return nil, "", fmt.Errorf("load skills from default directories: no candidates configured")
+}
+
+// NewCatalog creates a catalog by scanning the provided filesystem for SKILL.md files.
+func NewCatalog(skillFS fs.FS) (*Catalog, error) {
 	entries := make(map[string]*Entry)
 
 	err := fs.WalkDir(skillFS, ".", func(filePath string, d fs.DirEntry, walkErr error) error {
@@ -121,4 +156,46 @@ func (c *Catalog) ReadFile(name string, relativePath string) ([]byte, error) {
 	}
 
 	return content, nil
+}
+
+// ListFiles returns additional files under the skill directory, excluding SKILL.md.
+func (c *Catalog) ListFiles(name string, limit int) ([]string, error) {
+	entry, err := c.Get(name)
+	if err != nil {
+		return nil, err
+	}
+
+	root := entry.Dir
+	if root == "" {
+		root = "."
+	}
+
+	files := make([]string, 0)
+	err = fs.WalkDir(c.fs, root, func(filePath string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if path.Base(filePath) == skillFileName {
+			return nil
+		}
+
+		relativePath := filePath
+		if entry.Dir != "" {
+			relativePath = strings.TrimPrefix(filePath, entry.Dir+"/")
+		}
+		files = append(files, relativePath)
+		if limit > 0 && len(files) >= limit {
+			return fs.SkipAll
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list skill files %s: %w", name, err)
+	}
+
+	slices.Sort(files)
+	return files, nil
 }

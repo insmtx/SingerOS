@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	skillcatalog "github.com/insmtx/SingerOS/backend/skills/catalog"
+	skilltools "github.com/insmtx/SingerOS/backend/tools/skill"
 )
 
 // SkillsContext is the prompt-ready projection of the file-based skill catalog.
@@ -14,7 +14,7 @@ type SkillsContext struct {
 }
 
 // BuildSkillsContext converts the skill catalog into prompt-ready summary sections.
-func BuildSkillsContext(catalog *skillcatalog.Catalog) (*SkillsContext, error) {
+func BuildSkillsContext(catalog *skilltools.Catalog) (*SkillsContext, error) {
 	if catalog == nil {
 		return &SkillsContext{}, nil
 	}
@@ -50,7 +50,7 @@ func BuildSkillsContext(catalog *skillcatalog.Catalog) (*SkillsContext, error) {
 	return context, nil
 }
 
-func buildSummarySection(summaries []skillcatalog.Summary) string {
+func buildSummarySection(summaries []skilltools.Summary) string {
 	var builder strings.Builder
 
 	builder.WriteString("Available skills:\n")

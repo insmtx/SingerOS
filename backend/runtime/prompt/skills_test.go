@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	skillcatalog "github.com/insmtx/SingerOS/backend/skills/catalog"
+	skilltools "github.com/insmtx/SingerOS/backend/tools/skill"
 )
 
 func TestBuildSkillsContext(t *testing.T) {
@@ -47,7 +47,7 @@ Load on demand.
 		t.Fatalf("write skill failed: %v", err)
 	}
 
-	catalog, err := skillcatalog.New(os.DirFS(rootDir))
+	catalog, err := skilltools.NewCatalog(os.DirFS(rootDir))
 	if err != nil {
 		t.Fatalf("load catalog failed: %v", err)
 	}
