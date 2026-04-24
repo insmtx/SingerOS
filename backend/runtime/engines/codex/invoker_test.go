@@ -24,10 +24,14 @@ func TestSessionStore(t *testing.T) {
 	}
 }
 
-func TestCodexAdapterAskCurrentTime(t *testing.T) {
+func TestAdapterAskCurrentTime(t *testing.T) {
 	codexPath, err := exec.LookPath("codex")
 	if err != nil {
 		t.Skip("codex CLI not found in PATH")
+	}
+	apiKey := firstNonEmptyEnv("SINGEROS_LLM_API_KEY")
+	if apiKey == "" {
+		t.Skip("set SINGEROS_LLM_API_KEY to run the real codex adapter test")
 	}
 
 	workDir, err := os.Getwd()
@@ -42,11 +46,13 @@ func TestCodexAdapterAskCurrentTime(t *testing.T) {
 
 	handle, err := adapter.Run(ctx, engines.RunRequest{
 		WorkDir: workDir,
-		Prompt:  "用一句中文回答当前时间。不要修改任何文件。",
+		Prompt:  "用一句中文回答当前系统时间。不要修改任何文件。",
 		LogPath: logPath,
 		Model: engines.ModelConfig{
 			Provider: "openai",
-			Model:    "gpt-5.4",
+			APIKey:   apiKey,
+			Model:    firstNonEmptyEnv("SINGEROS_LLM_MODEL"),
+			BaseURL:  firstNonEmptyEnv("SINGEROS_LLM_BASE_URL"),
 		},
 		Timeout: 2 * time.Minute,
 	})
@@ -71,4 +77,13 @@ func TestCodexAdapterAskCurrentTime(t *testing.T) {
 		t.Fatalf("expected non-empty codex result, log path: %s", logPath)
 	}
 	t.Logf("codex current time result: %s", result)
+}
+
+func firstNonEmptyEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
 }

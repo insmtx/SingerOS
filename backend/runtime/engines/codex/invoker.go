@@ -138,6 +138,7 @@ func (inv *Invoker) Run(ctx context.Context, req engines.RunRequest) (engines.Pr
 
 func buildArgs(threadID string, resume bool, req engines.RunRequest) []string {
 	args := []string{"exec"}
+	args = append(args, singerProviderConfigArgs(req)...)
 	if req.Model.Model != "" {
 		args = append(args, "--model", req.Model.Model)
 	}
@@ -149,6 +150,42 @@ func buildArgs(threadID string, resume bool, req engines.RunRequest) []string {
 		return args
 	}
 	return append(args, "-", "--json", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox")
+}
+
+func singerProviderConfigArgs(req engines.RunRequest) []string {
+	baseURL := firstNonEmptyString(
+		req.Model.BaseURL,
+		envValue(req.ExtraEnv, "OPENAI_API_BASE"),
+		envValue(req.ExtraEnv, "OPENAI_BASE_URL"),
+		os.Getenv("OPENAI_API_BASE"),
+		os.Getenv("OPENAI_BASE_URL"),
+	)
+	return []string{
+		"-c", `model_provider="singer"`,
+		"-c", `model_providers.singer.name="singer"`,
+		"-c", fmt.Sprintf(`model_providers.singer.base_url=%q`, baseURL),
+		"-c", `model_providers.singer.env_key="OPENAI_API_KEY"`,
+		"-c", `model_providers.singer.wire_api="chat"`,
+	}
+}
+
+func envValue(entries []string, key string) string {
+	prefix := key + "="
+	for _, entry := range entries {
+		if strings.HasPrefix(entry, prefix) {
+			return strings.TrimPrefix(entry, prefix)
+		}
+	}
+	return ""
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func extractSessionID(r io.Reader) string {
