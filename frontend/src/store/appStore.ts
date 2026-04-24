@@ -1,5 +1,6 @@
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { createWithEqualityFn } from 'zustand/traditional';
+import { type ChatAction, type ChatStore, chatSlice } from './slices/chatSlice';
 import {
   type LayoutAction,
   type LayoutStore,
@@ -12,12 +13,13 @@ import {
 } from './slices/topicSlice';
 import type { SliceCreator } from './types';
 
-export type AppStore = LayoutStore & TopicStore;
-export type AppAction = LayoutAction & TopicAction;
+export type AppStore = LayoutStore & TopicStore & ChatStore;
+export type AppAction = LayoutAction & TopicAction & ChatAction;
 
 const createStore: SliceCreator<AppStore> = (...params) => ({
   ...layoutSlice(...params),
   ...topicSlice(...params),
+  ...chatSlice(...params),
 });
 
 export const useAppStore = createWithEqualityFn<AppStore>()(
@@ -31,4 +33,8 @@ export const useLayoutStore = <T>(
 
 export const useTopicStore = <T>(
   selector: (state: TopicStore & TopicAction) => T,
+): T => useAppStore(selector);
+
+export const useChatStore = <T>(
+  selector: (state: ChatStore & ChatAction) => T,
 ): T => useAppStore(selector);
