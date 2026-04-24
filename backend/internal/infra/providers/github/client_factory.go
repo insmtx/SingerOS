@@ -47,19 +47,19 @@ type ResolvedClient struct {
 // ClientFactory 负责把已授权账户转换成 GitHub client。
 type ClientFactory struct {
 	cfg         config.GithubAppConfig
-	authService *auth.Service
+	authService *auth.ThirdPartyAuthService
 	httpClient  *http.Client
 	now         func() time.Time
 	resolvers   []clientResolver
 }
 
 // NewClientFactory 创建一个新的 GitHub client 工厂。
-func NewClientFactory(cfg config.GithubAppConfig, authService *auth.Service) *ClientFactory {
+func NewClientFactory(cfg config.GithubAppConfig, authService *auth.ThirdPartyAuthService) *ClientFactory {
 	return NewClientFactoryWithHTTPClient(cfg, authService, nil)
 }
 
 // NewClientFactoryWithHTTPClient 创建一个可注入自定义 HTTP client 的 GitHub client 工厂。
-func NewClientFactoryWithHTTPClient(cfg config.GithubAppConfig, authService *auth.Service, httpClient *http.Client) *ClientFactory {
+func NewClientFactoryWithHTTPClient(cfg config.GithubAppConfig, authService *auth.ThirdPartyAuthService, httpClient *http.Client) *ClientFactory {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 15 * time.Second}
 	}

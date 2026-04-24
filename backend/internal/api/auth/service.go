@@ -10,8 +10,8 @@ import (
 
 const oauthStateBytes = 16
 
-// Service 提供统一的用户授权账户接入与运行时解析能力。
-type Service struct {
+// ThirdPartyAuthService 提供统一的第三方平台授权账户接入与运行时解析能力。
+type ThirdPartyAuthService struct {
 	store           Store
 	resolver        *AccountResolver
 	providers       map[string]AuthorizationProvider
@@ -19,9 +19,9 @@ type Service struct {
 	defaultResolver ProviderAuthResolver
 }
 
-// NewService 创建一个新的授权服务。
-func NewService(store Store, resolver *AccountResolver) *Service {
-	service := &Service{
+// NewThirdPartyAuthService 创建一个新的第三方平台授权服务。
+func NewThirdPartyAuthService(store Store, resolver *AccountResolver) *ThirdPartyAuthService {
+	service := &ThirdPartyAuthService{
 		store:         store,
 		resolver:      resolver,
 		providers:     make(map[string]AuthorizationProvider),
@@ -34,7 +34,7 @@ func NewService(store Store, resolver *AccountResolver) *Service {
 }
 
 // RegisterProvider 注册一个授权 provider。
-func (s *Service) RegisterProvider(provider AuthorizationProvider) {
+func (s *ThirdPartyAuthService) RegisterProvider(provider AuthorizationProvider) {
 	if provider == nil {
 		return
 	}
@@ -42,7 +42,7 @@ func (s *Service) RegisterProvider(provider AuthorizationProvider) {
 }
 
 // RegisterAuthResolver registers a provider-specific runtime authorization resolver.
-func (s *Service) RegisterAuthResolver(provider string, resolver ProviderAuthResolver) {
+func (s *ThirdPartyAuthService) RegisterAuthResolver(provider string, resolver ProviderAuthResolver) {
 	if s == nil || provider == "" || resolver == nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (s *Service) RegisterAuthResolver(provider string, resolver ProviderAuthRes
 }
 
 // StartAuthorization 发起某个 provider 的用户授权。
-func (s *Service) StartAuthorization(ctx context.Context, req *StartAuthorizationRequest) (string, error) {
+func (s *ThirdPartyAuthService) StartAuthorization(ctx context.Context, req *StartAuthorizationRequest) (string, error) {
 	if req == nil {
 		return "", fmt.Errorf("authorization request is required")
 	}
@@ -84,7 +84,7 @@ func (s *Service) StartAuthorization(ctx context.Context, req *StartAuthorizatio
 }
 
 // HandleAuthorizationCallback 处理 provider 回调并保存授权账户。
-func (s *Service) HandleAuthorizationCallback(ctx context.Context, req *AuthorizationCallbackRequest) (*AuthorizationResult, error) {
+func (s *ThirdPartyAuthService) HandleAuthorizationCallback(ctx context.Context, req *AuthorizationCallbackRequest) (*AuthorizationResult, error) {
 	if req == nil {
 		return nil, fmt.Errorf("authorization callback request is required")
 	}
@@ -137,12 +137,12 @@ func (s *Service) HandleAuthorizationCallback(ctx context.Context, req *Authoriz
 }
 
 // ResolveAccount 解析运行时可用账户。
-func (s *Service) ResolveAccount(ctx context.Context, req *ResolveAccountRequest) (*ResolvedAccount, error) {
+func (s *ThirdPartyAuthService) ResolveAccount(ctx context.Context, req *ResolveAccountRequest) (*ResolvedAccount, error) {
 	return s.resolver.Resolve(ctx, req)
 }
 
 // ResolveAuthorization resolves runtime authorization through provider-specific resolvers first.
-func (s *Service) ResolveAuthorization(ctx context.Context, req *ResolveAuthorizationRequest) (*ResolvedAuthorization, error) {
+func (s *ThirdPartyAuthService) ResolveAuthorization(ctx context.Context, req *ResolveAuthorizationRequest) (*ResolvedAuthorization, error) {
 	if req == nil {
 		return nil, fmt.Errorf("resolve authorization request is required")
 	}

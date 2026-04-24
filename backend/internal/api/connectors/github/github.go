@@ -34,7 +34,7 @@ type Connector struct {
 	client    *github.Client
 	publisher eventbus.Publisher
 	db        *gorm.DB
-	authSvc   *auth.Service
+	authSvc   *auth.ThirdPartyAuthService
 }
 
 // ChannelCode returns the channel identifier for GitHub.
@@ -50,7 +50,7 @@ func (c *Connector) RegisterRoutes(r gin.IRouter) {
 }
 
 // NewConnector creates a new GitHub connector instance.
-func NewConnector(cfg config.GithubAppConfig, publisher eventbus.Publisher, db *gorm.DB, authSvc *auth.Service) *Connector {
+func NewConnector(cfg config.GithubAppConfig, publisher eventbus.Publisher, db *gorm.DB, authSvc *auth.ThirdPartyAuthService) *Connector {
 	logs.Infof("Creating new GitHub connector for app ID: %d", cfg.AppID)
 
 	var githubClient *github.Client

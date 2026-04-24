@@ -4,26 +4,21 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	auth "github.com/insmtx/SingerOS/backend/internal/api/auth"
-	"github.com/insmtx/SingerOS/backend/internal/infra/providers/github"
 	"github.com/insmtx/SingerOS/backend/config"
-	infradb "github.com/insmtx/SingerOS/backend/internal/infra/db"
-	"github.com/insmtx/SingerOS/backend/internal/api/trace"
-	"github.com/insmtx/SingerOS/backend/internal/infra/mq"
-	"github.com/insmtx/SingerOS/backend/internal/api"
-	"github.com/insmtx/SingerOS/backend/internal/eventengine"
 	"github.com/insmtx/SingerOS/backend/internal/agent"
+	"github.com/insmtx/SingerOS/backend/internal/api"
+	"github.com/insmtx/SingerOS/backend/internal/api/trace"
+	"github.com/insmtx/SingerOS/backend/internal/eventengine"
+	infradb "github.com/insmtx/SingerOS/backend/internal/infra/db"
+	"github.com/insmtx/SingerOS/backend/internal/infra/mq"
 	"github.com/insmtx/SingerOS/backend/tools"
 	skilltools "github.com/insmtx/SingerOS/backend/tools/skill"
 	"github.com/spf13/cobra"
 	"github.com/ygpkg/yg-go/apis/runtime/middleware"
 	ygconfig "github.com/ygpkg/yg-go/config"
+	"github.com/ygpkg/yg-go/lifecycle"
 	"github.com/ygpkg/yg-go/logs"
 	"gorm.io/gorm"
 )
@@ -59,8 +54,6 @@ var serverCmd = &cobra.Command{
 			logs.Fatalf("LLM configuration is required for Eino runtime")
 			return
 		}
-
-		authService := buildAuthService(cfg)
 
 		runtimeConfig, err := buildRuntimeConfig()
 		if err != nil {
@@ -100,7 +93,7 @@ var serverCmd = &cobra.Command{
 			r.Use(middleware.Recovery())
 		}
 
-		api.SetupRouter(r, *cfg, publisher, db, authService)
+		api.SetupRouter(r, *cfg, publisher, db)
 
 		srv := &http.Server{
 			Addr:    serverHttpAddr,
@@ -110,7 +103,7 @@ var serverCmd = &cobra.Command{
 		logs.Info("Starting SingerOS backend service...")
 		logs.Infof("Listening on %s", serverHttpAddr)
 
-		ctx := context.Background()
+		ctx, cancel := context.WithCancel(context.Background())
 		if err := orchestratorInstance.Start(ctx); err != nil {
 			logs.Errorf("Failed to start orchestrator: %v", err)
 		} else {
@@ -123,20 +116,16 @@ var serverCmd = &cobra.Command{
 			}
 		}()
 
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-		<-sigChan
-		logs.Info("Shutting down server...")
+		lifecycle.Std().AddCloseFunc(func() error {
+			defer cancel()
+			if err := srv.Shutdown(ctx); err != nil {
+				logs.Errorf("Server forced to shutdown: %v", err)
+			}
+			return nil
+		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(ctx); err != nil {
-			logs.Errorf("Server forced to shutdown: %v", err)
-		}
-
-		if publisher != nil {
-			publisher.Close()
-		}
+		lifecycle.Std().AddCloseFunc(publisher.Close)
+		lifecycle.Std().WaitExit()
 
 		logs.Info("Server exited")
 	},
@@ -194,18 +183,6 @@ func buildRuntimeConfig() (agent.Config, error) {
 		SkillsCatalog: catalog,
 		ToolRegistry:  toolRegistry,
 	}, nil
-}
-
-func buildAuthService(cfg *config.Config) *auth.Service {
-	accountStore := auth.NewInMemoryStore()
-	accountResolver := auth.NewAccountResolver(accountStore)
-	authService := auth.NewService(accountStore, accountResolver)
-
-	if cfg != nil && cfg.Github != nil {
-		authService.RegisterProvider(githubprovider.NewOAuthProvider(*cfg.Github))
-	}
-
-	return authService
 }
 
 func buildTooling(catalog *skilltools.Catalog) (*tools.Registry, error) {

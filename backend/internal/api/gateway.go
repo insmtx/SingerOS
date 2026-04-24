@@ -11,6 +11,7 @@ import (
 	"github.com/insmtx/SingerOS/backend/internal/api/connectors"
 	"github.com/insmtx/SingerOS/backend/internal/api/connectors/github"
 	"github.com/insmtx/SingerOS/backend/internal/api/connectors/gitlab"
+	githubprovider "github.com/insmtx/SingerOS/backend/internal/infra/providers/github"
 	"github.com/insmtx/SingerOS/backend/internal/infra/websocket"
 	eventbus "github.com/insmtx/SingerOS/backend/internal/infra/mq"
 	"github.com/ygpkg/yg-go/logs"
@@ -21,8 +22,10 @@ import (
 //
 // 根据配置初始化并注册 GitHub、GitLab 等渠道连接器，
 // 同时设置客户端 WebSocket 连接器，并将所有连接器的路由注册到 HTTP 服务器。
-func SetupRouter(r gin.IRouter, cfg config.Config, publisher eventbus.Publisher, db *gorm.DB, authService *auth.Service) {
+func SetupRouter(r gin.IRouter, cfg config.Config, publisher eventbus.Publisher, db *gorm.DB) {
 	router := connectors.NewRouter()
+
+	authService := initThirdPartyAuthService(&cfg)
 
 	if cfg.Github != nil {
 		logs.Info("Setting up GitHub connector")
@@ -49,4 +52,17 @@ func SetupRouter(r gin.IRouter, cfg config.Config, publisher eventbus.Publisher,
 
 	router.RegisterRoutes(r)
 	logs.Info("Event gateway routes registered successfully")
+}
+
+// initThirdPartyAuthService 初始化第三方平台授权服务并注册 provider
+func initThirdPartyAuthService(cfg *config.Config) *auth.ThirdPartyAuthService {
+	accountStore := auth.NewInMemoryStore()
+	accountResolver := auth.NewAccountResolver(accountStore)
+	authService := auth.NewThirdPartyAuthService(accountStore, accountResolver)
+
+	if cfg != nil && cfg.Github != nil {
+		authService.RegisterProvider(githubprovider.NewOAuthProvider(*cfg.Github))
+	}
+
+	return authService
 }
