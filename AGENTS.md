@@ -105,7 +105,7 @@ import (
   - `/backend/gateway` - HTTP 网关包
   - `/backend/interaction` - 事件驱动交互层
     - `/backend/interaction/connectors` - 渠道连接器（GitHub 已实现；GitLab，WeWork 桩代码）
-    - `/backend/interaction/eventbus` - 事件总线抽象（RabbitMQ 实现）
+    - `/backend/internal/infra/mq` - NATS JetStream 事件总线实现
     - `/backend/interaction/gateway` - 事件网关设置
   - `/backend/skills` - Skill 接口、类型和示例
   - `/backend/types` - 核心领域类型（DigitalAssistant，Event 等）
@@ -141,7 +141,7 @@ import (
 基于 docs/ARCHITECTURE.md 中描述的 AI OS 架构，SingerOS 平台包含以下主要组件：
 
 1. **Event Gateway** - 接收来自各种渠道的外部事件（✅ 已实现）
-2. **Event Bus** - 用于解耦组件的消息队列系统（✅ RabbitMQ 已实现）
+2. **Event Bus** - 用于解耦组件的消息队列系统（✅ NATS JetStream 已实现）
 3. **Orchestrator** - 核心调度和协调机制（🔄 计划中）
 4. **DigitalAssistant** - 表示 AI worker 的顶级抽象（✅ 类型已定义）
 5. **Agent** - DigitalAssistant 中的决策实体（🔄 计划中）
@@ -207,7 +207,7 @@ type Connector interface {
 }
 ```
 
-事件被标准化为 `interaction.Event` 类型并发布到事件总线（RabbitMQ）。
+事件被标准化为 `interaction.Event` 类型并发布到事件总线（NATS JetStream）。
 
 ## 权限和安全
 
@@ -241,8 +241,6 @@ SingerOS/
 │   │   │   ├── github/      # GitHub webhook 连接器（✅ 已实现）
 │   │   │   ├── gitlab/      # GitLab 连接器（🔄 桩代码）
 │   │   │   └── wework/      # WeWork/企业微信 连接器（🔄 桩代码）
-│   │   ├── eventbus/
-│   │   │   └── rabbitmq/    # RabbitMQ 发布者（✅ 已实现）
 │   │   └── gateway/         # 事件网关路由器设置
 │   │
 │   ├── skills/              # Skill 接口，BaseSkill，SkillManager 接口
@@ -266,7 +264,7 @@ SingerOS/
 初始 MVP 专注于这些关键组件：
 
 1. Event Gateway (✅ 已完成)
-2. Event Bus / RabbitMQ (✅ 已完成)
+2. Event Bus / NATS JetStream (✅ 已完成)
 3. Skill System 接口 (✅ 已完成)
 4. GitHub 集成 (✅ webhook + 事件解析已完成)
 5. Skill Proxy 服务 (✅ 服务框架已完成)
@@ -290,7 +288,7 @@ MVP 特性：
 | 语言 | Golang | ✅ 活跃 |
 | HTTP 框架 | Gin | ✅ 活跃 |
 | CLI 框架 | Cobra | ✅ 活跃 |
-| 消息队列 | RabbitMQ | ✅ 活跃 |
+| 消息队列 | NATS JetStream | ✅ 活跃 |
 | ORM | GORM | ✅ 活跃 (类型已定义) |
 | 数据库 | Postgres | 🔄 计划中 |
 | 缓存 | Redis | 🔄 计划中 |

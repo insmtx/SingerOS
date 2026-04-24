@@ -7,7 +7,7 @@ Docker Compose setup for SingerOS development environment.
 This setup brings up the following services:
 - **singer**: Main application server
 - **postgresql**: Database server
-- **rabbitmq**: Message broker
+- **nats**: Message broker with JetStream
 - **redis**: In-memory database for caching
 
 ## Usage
@@ -36,8 +36,8 @@ docker-compose logs -f
 
 - `8080`: SingerOS API server
 - `5432`: PostgreSQL server
-- `5672`: RabbitMQ server (AMQP)
-- `15672`: RabbitMQ Management UI
+- `4222`: NATS server (Client)
+- `8222`: NATS Monitoring
 - `6379`: Redis server
 
 ## Health Checks

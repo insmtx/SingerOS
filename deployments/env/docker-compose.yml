@@ -19,19 +19,18 @@ services:
       timeout: 5s
       retries: 5
 
-  rabbitmq:
-    image: registry.yygu.cn/library/rabbitmq:3.13.7
-    container_name: singer-rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: singer_user
-      RABBITMQ_DEFAULT_PASS: singer_password
+  nats:
+    image: registry.yygu.cn/library/nats:2.12.7
+    container_name: singer-nats
+    command: ["--jetstream"]
+    environment: []
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "4222:4222"
+      - "8222:8222"
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - nats_data:/data
     healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
+      test: ["CMD-SHELL", "nats server check"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,13 +58,13 @@ services:
     depends_on:
       postgresql:
         condition: service_healthy
-      rabbitmq:
+      nats:
         condition: service_healthy
       redis:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgres://singer_user:singer_password@postgresql:5432/singer_db
-      - RABBITMQ_URL=amqp://singer_user:singer_password@rabbitmq:5672
+      - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - GIN_MODE=release
     volumes:
@@ -75,5 +74,5 @@ services:
 
 volumes:
   postgres_data:
-  rabbitmq_data:
+  nats_data:
   redis_data:

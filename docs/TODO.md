@@ -12,7 +12,7 @@
 | 组件 | 状态 | 说明 |
 |------|------|------|
 | Event Gateway | ✅ 完成 | GitHub webhook 接收、签名验证、事件解析 |
-| Event Bus (RabbitMQ) | ✅ 完成 | Publisher/Subscriber 模式，topic-based 路由 |
+| Event Bus (NATS JetStream) | ✅ 完成 | Publisher/Subscriber 模式，topic-based 路由 |
 | Orchestrator | ✅ 完成 | 事件路由到 Agent Runtime |
 | Agent Runtime (Eino) | ✅ 完成 | LLM 代理执行引擎，工具调用 |
 | Tools 系统 | ✅ 完成 | 注册表、执行运行时、权限解析 |
@@ -50,7 +50,7 @@
 
 - ✅ Docker化项目 - docker-compose 配置完成
 - ✅ GitHub Webhook接入 - 签名验证、事件解析
-- ✅ 事件发布到 RabbitMQ
+- ✅ 事件发布到 NATS JetStream
 - ✅ Orchestrator 事件消费
 - ✅ LLM Provider (OpenAI)
 - ✅ Skill 基础实现
@@ -235,7 +235,7 @@ backend/
 │   │   ├── gitlab/          # GitLab 集成（stub）
 │   │   └── wework/          # 企业微信（stub）
 │   ├── eventbus/            # 事件总线
-│   │   └── rabbitmq/        # RabbitMQ 实现
+│   │   └── nats/            # NATS JetStream 实现
 │   └── gateway/             # 事件网关
 ├── orchestrator/            # 事件编排器
 ├── runtime/                 # Agent Runtime
@@ -327,7 +327,7 @@ backend/
 - 支持PR和Issue Comment事件
 
 ### 4. 事件总线和编排器 ✅
-- 事件发布到RabbitMQ (`backend/interaction/eventbus/`)
+- 事件发布到NATS JetStream (`backend/internal/infra/mq/`)
 - 事件消费和处理 (`backend/orchestrator/orchestrator.go`)
 - 预设处理流程，包括PR和Issue事件
 

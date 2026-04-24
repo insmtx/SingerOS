@@ -39,6 +39,6 @@ database:
 
 - [ ] 配置文件路径正确
 - [ ] 如果使用数据库，PostgreSQL已启动且连接信息正确
-- [ ] 如果使用RabbitMQ，RabbitMQ已启动
+- [ ] 如果使用NATS，NATS已启动
 - [ ] GitHub配置正确（如果使用GitHub功能）
 - [ ] 所有端口可用 (默认8080)

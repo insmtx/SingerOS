@@ -44,13 +44,12 @@ var serverCmd = &cobra.Command{
 			return
 		}
 
-		rmqUrl := "amqp://singer_user:singer_password@rabbitmq:5672/"
-		if cfg.RabbitMQ != nil && cfg.RabbitMQ.URL != "" {
-			rmqUrl = cfg.RabbitMQ.URL
+		natsUrl := "nats://nats:4222"
+		if cfg.NATS != nil && cfg.NATS.URL != "" {
+			natsUrl = cfg.NATS.URL
 		}
 
-		rmqCfg := ygconfig.RabbitMQConfig{URL: rmqUrl}
-		publisher, _, err := mq.NewPublisher(rmqCfg)
+		publisher, err := mq.NewPublisher(natsUrl)
 		if err != nil {
 			logs.Fatalf("Failed to create event publisher: %v", err)
 			return

@@ -6,7 +6,7 @@
 
 - ✅ Webhook 接收和验证
 - ✅ 事件解析和标准化
-- ✅ 事件发布到 RabbitMQ
+- ✅ 事件发布到 NATS JetStream
 - ✅ Orchestrator 消费和路由
 - ✅ Eino Agent Runtime
 - ✅ GitHub Tools（PR 读取、文件对比、Review 发布）
@@ -38,11 +38,11 @@
 - [x] 自动映射为内部 `interaction.Event` 结构
 - [x] 正确填充 Payload 数据 (repo, actor, context)
 
-### ✓ 事件发布层 (`backend/interaction/eventbus/rabbitmq/`)
+### ✓ 事件发布层 (`backend/internal/infra/mq/`)
 
-- [x] 发布到 RabbitMQ topic: `interaction.github.pull_request`
+- [x] 发布到 NATS JetStream topic: `interaction.github.pull_request`
 - [x] 支持异步消息传输
-- [x] Publisher 接口抽象 (`eventbus/bus.go`)
+- [x] Publisher 接口抽象 (`mq/bus.go`)
 
 ### ✓ 事件消费层 (`backend/orchestrator/orchestrator.go`)
 
@@ -96,10 +96,9 @@
    ↓
    publisher.Publish(ctx, "interaction.github.pull_request", event)
    
-4. RabbitMQ Transport (backend/interaction/eventbus/rabbitmq/)
+4. NATS JetStream Transport (backend/internal/infra/mq/)
    ↓
    Topic: interaction.github.pull_request
-   Exchange: interaction
    
 5. Orchestrator Consumer (backend/orchestrator/orchestrator.go)
    ↓
@@ -328,7 +327,7 @@ The code changes look acceptable. No critical bugs or security concerns detected
 - [ ] Webhook Secret 配置
 - [ ] OAuth Client ID/Secret 配置
 - [ ] LLM API Key 配置
-- [ ] RabbitMQ 连接配置
+- [ ] NATS 连接配置
 - [ ] 订阅的 Webhook 事件类型正确
 
 ---

@@ -151,8 +151,7 @@ type Connector interface {
 
 **实现：**
 
-* 当前：RabbitMQ
-* 推荐演进：NATS（更适合事件驱动架构）
+* NATS JetStream
 
 **接口定义：**
 
@@ -788,7 +787,7 @@ cmd/connector/            # 连接器进程
 | -------- | ------------------------------------ |
 | 语言     | Golang                               |
 | 网关     | Gin                                  |
-| 事件总线 | NATS（推荐）/ RabbitMQ（当前）       |
+| 事件总线 | NATS JetStream                       |
 | 数据库   | PostgreSQL                           |
 | 缓存     | Redis                                |
 | 向量库   | Qdrant                               |

@@ -12,7 +12,7 @@
 - ✅ OpenAI Provider 实现
 - ✅ Skill 系统接口和 Manager
 - ✅ Event Gateway (GitHub Webhook)
-- ✅ Event Bus (RabbitMQ)
+- ✅ Event Bus (NATS JetStream)
 - ✅ Orchestrator 基础实现
 - ✅ Tools 系统（Registry + Runtime）
 - ✅ Auth 系统（OAuth + 账户管理）
@@ -429,16 +429,16 @@ const (
 - `backend/orchestrator/consumer.go`
 - `backend/orchestrator/consumer_test.go`
 
-**提交信息**: `feat(orchestrator): implement event consumer from rabbitmq`
+**提交信息**: `feat(orchestrator): implement event consumer from NATS JetStream`
 
 **实现内容**:
-- 订阅RabbitMQ队列
+- 订阅NATS JetStream主题
 - 消息反序列化为Event
 - 错误处理与重试
 - 优雅关闭
 
 **验收标准**:
-- [x] 消费RabbitMQ消息正常
+- [x] 消费NATS消息正常
 - [x] 连接断开自动重连
 - [x] 使用Mock EventBus测试
 - [x] 支持并发消费(可配置worker数)
@@ -494,7 +494,7 @@ go test -v ./backend/orchestrator/... -run TestMatcher
 - [x] 端到端流程: Event → Match → Execute → Record
 - [x] 执行状态正确流转
 - [x] 错误能正确捕获与记录
-- [x] 集成测试使用真实RabbitMQ或容器
+- [x] 集成测试使用真实NATS或容器
 
 **自测命令**:
 ```bash

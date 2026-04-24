@@ -10,9 +10,9 @@ github:
   webhook_secret: "your_webhook_secret_here" # Webhook Signature Secret
   base_url: "https://api.github.com"       # GitHub API Base URL
 
-# RabbitMQ messaging queue configuration
-rabbitmq:
-  url: "amqp://singer_user:singer_password@localhost:5672/"  # RabbitMQ Connection URL
+# NATS messaging queue configuration
+nats:
+  url: "nats://localhost:4222"  # NATS Connection URL
   
 # Database configuration
 database:
