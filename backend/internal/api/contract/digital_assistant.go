@@ -7,11 +7,11 @@ type DigitalAssistantService interface {
 	// 创建数字助手
 	CreateDigitalAssistant(ctx context.Context, req *CreateDigitalAssistantRequest) (*DigitalAssistant, error)
 
-	// 根据 ID 获取数字助手详情
-	GetDigitalAssistantByID(ctx context.Context, id uint) (*DigitalAssistantDetail, error)
+	// 根据 ID 获取数字助手详情（需验证组织权限）
+	GetDigitalAssistantByID(ctx context.Context, orgID uint, id uint) (*DigitalAssistantDetail, error)
 
-	// 根据 Code 获取数字助手详情
-	GetDigitalAssistantByCode(ctx context.Context, code string) (*DigitalAssistantDetail, error)
+	// 根据 Code 获取数字助手详情（需验证组织权限）
+	GetDigitalAssistantByCode(ctx context.Context, orgID uint, code string) (*DigitalAssistantDetail, error)
 
 	// 更新数字助手信息
 	UpdateDigitalAssistant(ctx context.Context, id uint, req *UpdateDigitalAssistantRequest) (*DigitalAssistant, error)

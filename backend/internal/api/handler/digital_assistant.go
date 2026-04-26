@@ -67,8 +67,9 @@ func (h *DigitalAssistantHandler) CreateDigitalAssistant(ctx *gin.Context) {
 
 // GetDigitalAssistantRequest 获取数字助手请求
 type GetDigitalAssistantRequest struct {
-	ID   *uint   `json:"id,omitempty"`
-	Code *string `json:"code,omitempty"`
+	ID    *uint   `json:"id,omitempty"`
+	Code  *string `json:"code,omitempty"`
+	OrgID uint    `json:"org_id" binding:"required"`
 }
 
 // GetDigitalAssistant 获取数字助手详情
@@ -80,6 +81,8 @@ type GetDigitalAssistantRequest struct {
 // @Param body body GetDigitalAssistantRequest true "获取数字助手请求"
 // @Success 200 {object} dto.CreateDigitalAssistantResponse "成功响应"
 // @Failure 400 {object} dto.ErrorResponse "请求参数错误"
+// @Failure 403 {object} dto.ErrorResponse "权限不足"
+// @Failure 404 {object} dto.ErrorResponse "资源不存在"
 // @Failure 500 {object} dto.ErrorResponse "内部服务器错误"
 // @Router /GetDigitalAssistant [post]
 func (h *DigitalAssistantHandler) GetDigitalAssistant(ctx *gin.Context) {
@@ -94,16 +97,29 @@ func (h *DigitalAssistantHandler) GetDigitalAssistant(ctx *gin.Context) {
 		return
 	}
 
+	if req.OrgID == 0 {
+		ctx.JSON(http.StatusBadRequest, dto.Error(dto.CodeInvalidParams, "org_id is required"))
+		return
+	}
+
 	var result *contract.DigitalAssistantDetail
 	var err error
 
 	if req.ID != nil {
-		result, err = h.service.GetDigitalAssistantByID(ctx, *req.ID)
+		result, err = h.service.GetDigitalAssistantByID(ctx, req.OrgID, *req.ID)
 	} else {
-		result, err = h.service.GetDigitalAssistantByCode(ctx, *req.Code)
+		result, err = h.service.GetDigitalAssistantByCode(ctx, req.OrgID, *req.Code)
 	}
 
 	if err != nil {
+		if err.Error() == "permission denied: digital assistant belongs to different organization" {
+			ctx.JSON(http.StatusForbidden, dto.Error(dto.CodeInternalError, err.Error()))
+			return
+		}
+		if err.Error() == "digital assistant not found" {
+			ctx.JSON(http.StatusNotFound, dto.Error(dto.CodeNotFound, err.Error()))
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, dto.Error(dto.CodeInternalError, err.Error()))
 		return
 	}
