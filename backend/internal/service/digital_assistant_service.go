@@ -13,6 +13,8 @@ import (
 	"github.com/insmtx/SingerOS/backend/types"
 )
 
+var _ contract.DigitalAssistantService = (*digitalAssistantService)(nil)
+
 type digitalAssistantService struct {
 	db *gorm.DB
 }
@@ -21,21 +23,6 @@ func NewDigitalAssistantService(db *gorm.DB) contract.DigitalAssistantService {
 	return &digitalAssistantService{
 		db: db,
 	}
-}
-
-func getOrgIDFromContext(ctx context.Context) (uint, error) {
-	caller, _ := auth.FromContext(ctx)
-	if caller == nil || caller.OrgID == 0 {
-		return 0, errors.New("user not authenticated or org not set")
-	}
-	return caller.OrgID, nil
-}
-
-func verifyOrgPermission(daOrgID, orgID uint) error {
-	if daOrgID != orgID {
-		return errors.New("permission denied")
-	}
-	return nil
 }
 
 func (s *digitalAssistantService) CreateDigitalAssistant(ctx context.Context, req *contract.CreateDigitalAssistantRequest) (*contract.DigitalAssistant, error) {
@@ -78,8 +65,6 @@ func (s *digitalAssistantService) CreateDigitalAssistant(ctx context.Context, re
 			Memory:    types.MemoryConfig{Type: req.Config.Memory.Type},
 			Policies:  types.PolicyConfig{Type: req.Config.Policies.Type},
 		},
-		
-		
 	}
 
 	if err := db.CreateDigitalAssistant(ctx, s.db, da); err != nil {
@@ -286,8 +271,6 @@ func (s *digitalAssistantService) UpdateDigitalAssistantStatus(ctx context.Conte
 	return db.UpdateDigitalAssistant(ctx, s.db, da)
 }
 
-var _ contract.DigitalAssistantService = (*digitalAssistantService)(nil)
-
 func convertSkillRefs(reqRefs []contract.SkillRef) []types.SkillRef {
 	result := make([]types.SkillRef, 0, len(reqRefs))
 	for _, ref := range reqRefs {
@@ -341,8 +324,6 @@ func convertToContractDigitalAssistant(da *types.DigitalAssistant) *contract.Dig
 			Memory:    contract.MemoryConfig{Type: da.Config.Memory.Type},
 			Policies:  contract.PolicyConfig{Type: da.Config.Policies.Type},
 		},
-		
-		
 	}
 }
 
