@@ -51,6 +51,13 @@ func LoadDefaultCatalog() (*Catalog, string, error) {
 	return nil, "", fmt.Errorf("load skills from default directories: no candidates configured")
 }
 
+// NewEmptyCatalog creates an empty catalog without loading any skills.
+func NewEmptyCatalog() *Catalog {
+	return &Catalog{
+		entries: make(map[string]*Entry),
+	}
+}
+
 // NewCatalog creates a catalog by scanning the provided filesystem for SKILL.md files.
 func NewCatalog(skillFS fs.FS) (*Catalog, error) {
 	entries := make(map[string]*Entry)

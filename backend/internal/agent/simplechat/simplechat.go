@@ -1,0 +1,144 @@
+package simplechat
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	einomodel "github.com/cloudwego/eino/components/model"
+	einoschema "github.com/cloudwego/eino/schema"
+	"github.com/insmtx/SingerOS/backend/config"
+	"github.com/insmtx/SingerOS/backend/internal/agent"
+	einoadapter "github.com/insmtx/SingerOS/backend/internal/agent/eino"
+	"github.com/ygpkg/yg-go/logs"
+)
+
+var _ agent.AgentRuntime = (*SimpleChat)(nil)
+
+type SimpleChat struct {
+	chatModel    einomodel.ToolCallingChatModel
+	systemPrompt string
+}
+
+type Config struct {
+	LLMProvider string
+	APIKey      string
+	Model       string
+	BaseURL     string
+}
+
+func LoadFromEnv() *Config {
+	return &Config{
+		LLMProvider: "openai",
+		APIKey:      "",
+		Model:       "gpt-4",
+		BaseURL:     "",
+	}
+}
+
+func New(ctx context.Context, cfg *Config) (*SimpleChat, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is required")
+	}
+
+	llmConfig := &config.LLMConfig{
+		Provider: cfg.LLMProvider,
+		APIKey:   cfg.APIKey,
+		Model:    cfg.Model,
+		BaseURL:  cfg.BaseURL,
+	}
+
+	chatModel, err := einoadapter.NewOpenAIChatModel(ctx, llmConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create chat model: %w", err)
+	}
+
+	return &SimpleChat{
+		chatModel:    chatModel,
+		systemPrompt: "You are a helpful assistant.",
+	}, nil
+}
+
+func (s *SimpleChat) Run(ctx context.Context, req *agent.RequestContext) (*agent.RunResult, error) {
+	if s == nil || s.chatModel == nil {
+		return nil, fmt.Errorf("agent is not initialized")
+	}
+
+	startedAt := time.Now().UTC()
+
+	if req.RunID == "" {
+		req.RunID = fmt.Sprintf("run_%d", time.Now().UnixNano())
+	}
+	if req.TraceID == "" {
+		req.TraceID = req.RunID
+	}
+
+	userInput := buildUserInput(req)
+	if userInput == "" {
+		return nil, fmt.Errorf("empty user input")
+	}
+
+	userMsg := agent.InputMessage{
+		Role:    "user",
+		Content: userInput,
+	}
+	req.Input.Messages = append(req.Input.Messages, userMsg)
+
+	messages := []*einoschema.Message{
+		{
+			Role:    einoschema.System,
+			Content: s.systemPrompt,
+		},
+		{
+			Role:    einoschema.User,
+			Content: userInput,
+		},
+	}
+
+	response, err := s.chatModel.Generate(ctx, messages)
+	if err != nil {
+		return nil, fmt.Errorf("generate response: %w", err)
+	}
+
+	resultMessage := ""
+	if response != nil && len(response.Content) > 0 {
+		resultMessage = response.Content
+	}
+
+	usage := &agent.UsagePayload{}
+	if response != nil && response.ResponseMeta != nil && response.ResponseMeta.Usage != nil {
+		usage.InputTokens = response.ResponseMeta.Usage.PromptTokens
+		usage.OutputTokens = response.ResponseMeta.Usage.CompletionTokens
+		usage.TotalTokens = response.ResponseMeta.Usage.TotalTokens
+	}
+
+	result := &agent.RunResult{
+		RunID:       req.RunID,
+		TraceID:     req.TraceID,
+		Status:      agent.RunStatusCompleted,
+		Message:     resultMessage,
+		Usage:       usage,
+		StartedAt:   startedAt,
+		CompletedAt: time.Now().UTC(),
+	}
+
+	logs.InfoContextf(ctx, "SimpleChat run completed: run_id=%s status=%s message_len=%d",
+		req.RunID, result.Status, len(resultMessage))
+
+	return result, nil
+}
+
+func buildUserInput(req *agent.RequestContext) string {
+	if req == nil {
+		return ""
+	}
+
+	switch {
+	case req.Input.Text != "":
+		return req.Input.Text
+	case len(req.Input.Messages) > 0:
+		return req.Input.Messages[len(req.Input.Messages)-1].Content
+	default:
+		return ""
+	}
+}
