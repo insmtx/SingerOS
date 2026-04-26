@@ -1,10 +1,19 @@
 {
+    "schemes": [
+        "http",
+        "https"
+    ],
     "swagger": "2.0",
     "info": {
-        "contact": {}
+        "description": "SingerOS 数字助手平台 API，提供数字助手管理、技能调用、事件处理等功能",
+        "title": "SingerOS API",
+        "contact": {},
+        "version": "1.0"
     },
+    "host": "localhost:8080",
+    "basePath": "/v1",
     "paths": {
-        "/v1/CreateDigitalAssistant": {
+        "/CreateDigitalAssistant": {
             "post": {
                 "description": "创建一个新的数字助手实例",
                 "consumes": [

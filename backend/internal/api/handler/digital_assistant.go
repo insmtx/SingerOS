@@ -42,7 +42,7 @@ func RegisterDigitalAssistantRoutes(r gin.IRouter, service contract.DigitalAssis
 // @Success 200 {object} dto.CreateDigitalAssistantResponse "成功响应"
 // @Failure 400 {object} dto.ErrorResponse "请求参数错误"
 // @Failure 500 {object} dto.ErrorResponse "内部服务器错误"
-// @Router /v1/CreateDigitalAssistant [post]
+// @Router /CreateDigitalAssistant [post]
 func (h *DigitalAssistantHandler) CreateDigitalAssistant(ctx *gin.Context) {
 	var req contract.CreateDigitalAssistantRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {

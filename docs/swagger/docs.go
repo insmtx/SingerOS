@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/v1/CreateDigitalAssistant": {
+        "/CreateDigitalAssistant": {
             "post": {
                 "description": "创建一个新的数字助手实例",
                 "consumes": [
@@ -270,12 +270,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
-	Host:             "",
-	BasePath:         "",
-	Schemes:          []string{},
-	Title:            "",
-	Description:      "",
+	Version:          "1.0",
+	Host:             "localhost:8080",
+	BasePath:         "/v1",
+	Schemes:          []string{"http", "https"},
+	Title:            "SingerOS API",
+	Description:      "SingerOS 数字助手平台 API，提供数字助手管理、技能调用、事件处理等功能",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 }

@@ -1,3 +1,4 @@
+basePath: /v1
 definitions:
   github_com_insmtx_SingerOS_backend_internal_api_contract.AssistantConfig:
     properties:
@@ -131,10 +132,14 @@ definitions:
       message:
         type: string
     type: object
+host: localhost:8080
 info:
   contact: {}
+  description: SingerOS 数字助手平台 API，提供数字助手管理、技能调用、事件处理等功能
+  title: SingerOS API
+  version: "1.0"
 paths:
-  /v1/CreateDigitalAssistant:
+  /CreateDigitalAssistant:
     post:
       consumes:
       - application/json
@@ -164,4 +169,7 @@ paths:
       summary: 创建数字助手
       tags:
       - DigitalAssistant
+schemes:
+- http
+- https
 swagger: "2.0"

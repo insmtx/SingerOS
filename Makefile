@@ -99,7 +99,7 @@ logs:
 .PHONY: swagger swagger-clean
 
 swagger:
-	swag init --parseDependency --generalInfo backend/internal/api/router.go --output docs/swagger --exclude example
+	swag init --parseDependency --generalInfo backend/cmd/singer/server.go --output docs/swagger --exclude example
 	sed -i '/LeftDelim/d; /RightDelim/d' docs/swagger/docs.go
 
 swagger-clean:

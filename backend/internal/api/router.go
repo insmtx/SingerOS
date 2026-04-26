@@ -55,7 +55,7 @@ func SetupRouter(r gin.IRouter, cfg config.Config, publisher eventbus.Publisher,
 	logs.Info("Digital assistant routes registered successfully")
 
 	// Swagger UI 路由
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	v1.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 }
 
 // initDigitalAssistantService 初始化DigitalAssistant服务

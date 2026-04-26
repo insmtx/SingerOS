@@ -2,7 +2,7 @@
 // @version 1.0
 // @description SingerOS 数字助手平台 API，提供数字助手管理、技能调用、事件处理等功能
 // @host localhost:8080
-// @BasePath /
+// @BasePath /v1
 // @schemes http https
 package main
 
