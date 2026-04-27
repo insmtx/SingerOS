@@ -1,6 +1,6 @@
 import { CenterCanvas } from './CenterCanvas';
+import { ConversationListPanel } from './ConversationListPanel';
 import { LeftRail } from './LeftRail';
-import { RightRail } from './RightRail';
 import { TopBar } from './TopBar';
 
 export function Shell() {
@@ -9,8 +9,8 @@ export function Shell() {
       <TopBar />
       <div className="flex flex-1 overflow-hidden">
         <LeftRail />
+        <ConversationListPanel />
         <CenterCanvas />
-        <RightRail />
       </div>
     </div>
   );

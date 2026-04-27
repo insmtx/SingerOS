@@ -1,5 +1,5 @@
 export { CenterCanvas } from './CenterCanvas';
+export { ConversationListPanel } from './ConversationListPanel';
 export { LeftRail } from './LeftRail';
-export { RightRail } from './RightRail';
 export { Shell } from './Shell';
 export { TopBar } from './TopBar';

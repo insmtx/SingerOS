@@ -34,6 +34,7 @@ export type NavItem = {
 export type LayoutState = {
   leftRailCollapsed: boolean;
   rightRailCollapsed: boolean;
+  conversationListOpen: boolean;
   activeConversationId: string | null;
   activeWorkspaceId: string | null;
   workspaces: Workspace[];
@@ -51,6 +52,7 @@ export type LayoutStore = LayoutState & LayoutAction;
 const _initialState: LayoutState = {
   leftRailCollapsed: false,
   rightRailCollapsed: false,
+  conversationListOpen: true,
   activeConversationId: 'conv-1',
   activeWorkspaceId: null,
   workspaces: [
@@ -101,36 +103,12 @@ const _initialState: LayoutState = {
       ],
     },
     {
-      id: 'dev-collab',
-      label: '研发协作',
-      items: [
-        { id: 'insflow', label: 'InsFlow', icon: 'IconGitBranch' },
-        { id: 'insgit', label: 'InsGit', icon: 'IconCode' },
-        { id: 'jenkins', label: 'Jenkins', icon: 'IconHammer' },
-        { id: 'inssketch', label: 'InsSketch', icon: 'IconPaint' },
-      ],
-    },
-    {
-      id: 'team',
-      label: '团队效率',
-      items: [
-        { id: 'org', label: '组织管理', icon: 'IconNetwork' },
-        { id: 'reports', label: '汇报中心', icon: 'IconCalendar' },
-        { id: 'plans', label: '计划任务', icon: 'IconCalendar' },
-      ],
-    },
-    {
       id: 'system',
       label: '系统',
       items: [{ id: 'settings', label: '个人设置', icon: 'IconSettings' }],
     },
   ],
-  collapsedNavGroups: new Set([
-    'ai-capability',
-    'dev-collab',
-    'team',
-    'system',
-  ]),
+  collapsedNavGroups: new Set(),
   conversationSearchQuery: '',
 };
 
@@ -159,6 +137,12 @@ export class LayoutActionImpl {
 
   toggleLeftRail = () => {
     this.#set((state) => ({ leftRailCollapsed: !state.leftRailCollapsed }));
+  };
+
+  toggleConversationList = () => {
+    this.#set((state) => ({
+      conversationListOpen: !state.conversationListOpen,
+    }));
   };
 
   toggleRightRail = () => {

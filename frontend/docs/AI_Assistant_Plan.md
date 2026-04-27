@@ -2,6 +2,23 @@
 
 ## 变更记录
 
+### Phase 2+ 布局重构 (已完成)
+
+**布局变更**：移除右栏（RightRail），新增会话列面板（ConversationListPanel）。
+
+**新增文件**：
+| 文件 | 说明 |
+|------|------|
+| `src/components/layout/ConversationListPanel.tsx` | 会话历史列（搜索+新建+会话列表），点击左栏「AI 助手」展开 |
+
+**修改文件**：
+| 文件 | 说明 |
+|------|------|
+| `src/components/layout/Shell.tsx` | 移除 RightRail，新增 ConversationListPanel |
+| `src/components/layout/LeftRail.tsx` | AI 助手项点击切换 ConversationListPanel，移除内嵌会话列表 |
+| `src/components/layout/index.ts` | 新增 ConversationListPanel 导出，移除 RightRail 导出 |
+| `src/store/slices/layoutSlice.ts` | 新增 `conversationListOpen` 状态和 `toggleConversationList` action，初始值 `true` |
+
 ### Phase 1 + Phase 2 (已完成)
 
 **新增文件**：
@@ -65,8 +82,8 @@
 
 ### 1.3 现状保留与扩展
 当前已实现：
-- `Shell` 三栏布局（LeftRail / CenterCanvas / RightRail）
-- `layoutSlice`：工作区、会话列表、右侧面板 Tab
+- `Shell` 两栏+会话列布局（LeftRail / ConversationListPanel / CenterCanvas）
+- `layoutSlice`：工作区、会话列表、会话列开关状态
 - `topicSlice`：Topic CRUD（乐观更新模式）
 - 通信基础设施：`http`, `SSEClient`, `WSClient`
 
@@ -104,8 +121,8 @@ UI 控件:   无衬线, text-xs/sm, font-medium, tracking-wide, uppercase
 ### 2.3 尺寸规范
 ```
 TopBar 高度:      48px
-LeftRail 宽度:    260px (可折叠)
-RightRail 宽度:   280px (可折叠)
+LeftRail 宽度:    260px (可折叠至 52px)
+ConversationListPanel 宽度: 260px (可切换显示/隐藏)
 CenterCanvas 最大内容宽度:  720px (消息区域居中)
 ChatInput 最大宽度: 800px
 消息气泡圆角:     12px (用户) / 8px (AI)
@@ -118,19 +135,22 @@ ChatInput 最大宽度: 800px
 ```
 App
 └── Shell (h-screen, flex, overflow-hidden)
-    ├── TopBar (48px, flex, border-b)                    ← 新增
+    ├── TopBar (48px, flex, border-b)
     │   ├── Logo "SingerOS" + 版本号
     │   ├── 全局搜索框
     │   └── 右侧：AI 状态指示器 / 通知 / 用户头像菜单
     ├── MainArea (flex-1, flex, overflow-hidden)
     │   ├── LeftRail (260px, 可折叠)
-    │   │   ├── 导航分组（AI 助手、工作台、AI 能力...）  ← 重构
-    │   │   └── 会话列表（搜索 + 新建 + 历史）
+    │   │   └── 导航分组（AI 助手、工作台、AI 能力...）
+    │   │   └── 点击「AI 助手」展开/收起 ConversationListPanel
+    │   ├── ConversationListPanel (260px, 可切换)
+    │   │   ├── 搜索框 + 新建会话按钮
+    │   │   └── 会话历史列表（选中态高亮、hover 删除）
     │   ├── CenterCanvas (flex-1, flex-col)
-    │   │   ├── ChatHeader (会话标题栏)                   ← 新增
+    │   │   ├── ChatHeader (会话标题栏)
     │   │   │   ├── AI 头像 + 会话标题 + 下拉
     │   │   │   └── 右侧：Tokens / 搜索 / 设置 / 分享
-    │   │   ├── MessageTimeline (flex-1, overflow-y-auto) ← 核心
+    │   │   ├── MessageTimeline (flex-1, overflow-y-auto)
     │   │   │   ├── WelcomeScreen (无消息时)
     │   │   │   ├── DateDivider (日期分割线)
     │   │   │   ├── UserMessage (右对齐, 蓝色气泡)
@@ -139,14 +159,10 @@ App
     │   │   │   │   ├── ToolCallBlock (工具调用, 可展开)
     │   │   │   │   └── ContentBlock (Markdown 渲染)
     │   │   │   └── TypingIndicator (流式输入指示器)
-    │   │   └── ChatInput (底部输入区)                    ← 核心
+    │   │   └── ChatInput (底部输入区)
     │   │       ├── 附件预览区
     │   │       ├── textarea (自动高度, 快捷键)
     │   │       └── 底部工具栏 (附件/@/表情/模型/发送)
-    │   └── RightRail (280px, 可折叠, Tab切换)
-    │       ├── 快捷操作 (上下文建议)
-    │       ├── 文件收件箱
-    │       └── 工件预览
     └── (可选) CommandPalette / 提及面板 (浮层)
 ```
 
@@ -170,11 +186,9 @@ App
 
 ---
 
-### 4.2 LeftRail — 侧边导航重构
+### 4.2 LeftRail — 侧边导航
 
-**当前**：仅工作区 + 会话列表。
-
-**目标**：截图式层级导航（分组折叠 + 子菜单）。
+**当前**：层级导航分组，点击「AI 助手」展开 ConversationListPanel。
 
 **导航数据结构**：
 ```typescript
@@ -192,7 +206,7 @@ type NavItem = {
 
 **一级导航分组**：
 1. **核心功能**（无分组标题）
-   - AI 助手（当前激活，带会话列表）
+   - AI 助手（点击展开/收起会话列）
    - 工作台
 2. **AI 能力**
    - AI 员工
@@ -211,11 +225,10 @@ type NavItem = {
    - 个人设置
    - 权限管理
 
-**会话列表面板**（位于 AI 助手下方或独立浮层）：
-- 搜索框：实时过滤会话标题
-- 新建会话按钮（`+`）
-- 历史会话列表：标题、最后消息预览、时间、hover 显示删除/置顶
-- 支持拖拽排序（未来）
+**会话列面板**（ConversationListPanel，左栏与中栏之间独立列）：
+- 顶部：搜索框 + 新建会话按钮
+- 会话历史列表：标题、选中态高亮、hover 显示删除按钮
+- 进入页面时默认展开（`conversationListOpen: true`）
 
 ---
 
@@ -375,23 +388,21 @@ type Attachment = {
 
 ---
 
-### 4.6 右侧快捷面板（RightRail 扩展）
+### 4.6 右侧快捷面板（未来浮层扩展）
 
-当前已实现 Tab 切换（快捷 / 收件箱 / 工件）。
+当前布局已移除右栏（RightRail），未来可按需以浮层或 Sheet 形式实现：
 
-**扩展内容**：
-
-#### Tab 1: 快捷操作
+#### 快捷操作
 - 根据当前会话上下文动态生成建议按钮
 - 示例："总结当前文档", "生成代码", "解释这段逻辑"
 - 点击后自动填充到输入框或直接发送
 
-#### Tab 2: 文件收件箱
+#### 文件收件箱
 - 拖放上传区域
 - 当前会话关联的文件列表
 - 支持点击插入到消息中
 
-#### Tab 3: 工件预览
+#### 工件预览
 - AI 生成的 Markdown 文件、图片、代码文件
 - 支持预览模式切换（原始 / 渲染）
 
@@ -522,10 +533,11 @@ src/
 ├── components/
 │   ├── layout/
 │   │   ├── Shell.tsx              # 布局容器
-│   │   ├── TopBar.tsx             # 新增：全局状态栏
-│   │   ├── LeftRail.tsx           # 重构：导航 + 会话列表
-│   │   ├── CenterCanvas.tsx       # 重构：消息区容器
-│   │   └── RightRail.tsx          # 保留：快捷面板
+│   │   ├── TopBar.tsx             # 全局状态栏
+│   │   ├── LeftRail.tsx           # 导航分组
+│   │   ├── ConversationListPanel.tsx # 会话历史列（可切换）
+│   │   ├── CenterCanvas.tsx       # 消息区容器
+│   │   └── RightRail.tsx          # 保留（未使用，未来浮层扩展）
 │   ├── chat/
 │   │   ├── ChatHeader.tsx         # 新增：会话标题栏
 │   │   ├── MessageTimeline.tsx    # 新增：消息列表容器
