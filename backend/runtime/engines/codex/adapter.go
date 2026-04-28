@@ -47,9 +47,8 @@ func (a *Adapter) Run(ctx context.Context, req engines.RunRequest) (*engines.Run
 		return nil, err
 	}
 	return &engines.RunHandle{
-		Process:       proc,
-		Events:        events,
-		ExtractResult: ExtractResultFromLog,
+		Process: proc,
+		Events:  events,
 	}, nil
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -38,8 +37,6 @@ func TestAdapterAskCurrentTime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get working directory: %v", err)
 	}
-	logPath := filepath.Join(t.TempDir(), "codex-time.jsonl")
-
 	adapter := NewAdapter(codexPath, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -47,7 +44,6 @@ func TestAdapterAskCurrentTime(t *testing.T) {
 	handle, err := adapter.Run(ctx, engines.RunRequest{
 		WorkDir: workDir,
 		Prompt:  "用一句中文回答当前系统时间。不要修改任何文件。",
-		LogPath: logPath,
 		Model: engines.ModelConfig{
 			Provider: "openai",
 			APIKey:   apiKey,
@@ -61,8 +57,12 @@ func TestAdapterAskCurrentTime(t *testing.T) {
 	}
 
 	var finalEvent engines.Event
+	var result string
 	for event := range handle.Events {
 		t.Logf("received event: type=%s, content=%s", event.Type, event.Content)
+		if event.Type == engines.EventResult {
+			result = strings.TrimSpace(event.Content)
+		}
 		finalEvent = event
 	}
 	if finalEvent.Type == engines.EventError {
@@ -72,11 +72,30 @@ func TestAdapterAskCurrentTime(t *testing.T) {
 		t.Fatalf("unexpected final event: %#v", finalEvent)
 	}
 
-	result := strings.TrimSpace(handle.ExtractResult(logPath))
 	if result == "" {
-		t.Fatalf("expected non-empty codex result, log path: %s", logPath)
+		t.Fatal("expected non-empty codex result")
 	}
 	t.Logf("codex current time result: %s", result)
+}
+
+func TestParseCodexLineEmitsResult(t *testing.T) {
+	event, threadID := parseCodexLine(`{"type":"item.completed","item":{"type":"agent_message","text":"final"}}`)
+	if threadID != "" {
+		t.Fatalf("unexpected thread id: %s", threadID)
+	}
+	if event.Type != engines.EventResult || event.Content != "final" {
+		t.Fatalf("unexpected event: %#v", event)
+	}
+}
+
+func TestParseCodexLineCapturesThread(t *testing.T) {
+	event, threadID := parseCodexLine(`{"type":"thread.started","thread_id":"thread-1"}`)
+	if event.Type != "" {
+		t.Fatalf("unexpected event: %#v", event)
+	}
+	if threadID != "thread-1" {
+		t.Fatalf("got thread id %q, want thread-1", threadID)
+	}
 }
 
 func firstNonEmptyEnv(keys ...string) string {

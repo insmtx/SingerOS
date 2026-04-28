@@ -5,6 +5,8 @@ package engines
 import (
 	"context"
 	"time"
+
+	runtimeevents "github.com/insmtx/SingerOS/backend/runtime/events"
 )
 
 const (
@@ -16,21 +18,22 @@ const (
 
 const (
 	// EventStarted indicates that the external process has started.
-	EventStarted EventType = "started"
+	EventStarted = runtimeevents.EventStarted
+	// EventMessageDelta indicates human-readable CLI output that can be streamed to callers.
+	EventMessageDelta = runtimeevents.EventMessageDelta
+	// EventResult indicates the final assistant result emitted by the CLI.
+	EventResult = runtimeevents.EventResult
 	// EventDone indicates that the external process completed successfully.
-	EventDone EventType = "done"
+	EventDone = runtimeevents.EventCompleted
 	// EventError indicates that the external process failed.
-	EventError EventType = "error"
+	EventError = runtimeevents.EventFailed
 )
 
 // EventType 分类引擎进程发出的生命周期事件类型。
-type EventType string
+type EventType = runtimeevents.EventType
 
 // Event 引擎进程发出的生命周期事件。
-type Event struct {
-	Type    EventType `json:"type"`
-	Content string    `json:"content,omitempty"`
-}
+type Event = runtimeevents.Event
 
 // PrepareRequest 包含引擎特定的工作区设置输入。
 type PrepareRequest struct {
@@ -52,7 +55,6 @@ type RunRequest struct {
 	Resume      bool          // 是否恢复之前的会话
 	WorkDir     string        // 工作目录
 	Prompt      string        // 输入提示
-	LogPath     string        // 日志文件路径
 	Model       ModelConfig   // 模型配置
 	ExtraEnv    []string      // 额外环境变量
 	Timeout     time.Duration // 超时时间
@@ -64,14 +66,10 @@ type Process interface {
 	Stop() error // 停止进程
 }
 
-// ResultExtractor 从持久化的日志中提取最终的助手结果。
-type ResultExtractor func(logPath string) string
-
 // RunHandle 引擎进程启动后返回的句柄。
 type RunHandle struct {
-	Process       Process         // 进程控制句柄
-	Events        <-chan Event    // 事件通道
-	ExtractResult ResultExtractor // 结果提取函数
+	Process Process      // 进程控制句柄
+	Events  <-chan Event // 事件通道
 }
 
 // Engine 通过外部 AI CLI 执行提示。

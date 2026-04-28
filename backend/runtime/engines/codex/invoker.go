@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/insmtx/SingerOS/backend/runtime/engines"
 )
@@ -38,48 +38,18 @@ type codexEvent struct {
 }
 
 type codexItem struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	Type        string          `json:"type"`
+	Text        json.RawMessage `json:"text,omitempty"`
+	Command     string          `json:"command,omitempty"`
+	CommandLine string          `json:"command_line,omitempty"`
+	Name        string          `json:"name,omitempty"`
+	Output      string          `json:"output,omitempty"`
 }
 
-// ExtractResultFromLog 从 JSON 日志中返回最后的 Codex 代理消息。
-func ExtractResultFromLog(logPath string) string {
-	f, err := os.Open(logPath)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-
-	var lastText string
-	engines.ScanJSONLines(f, func(line string) bool {
-		var event codexEvent
-		if json.Unmarshal([]byte(line), &event) != nil {
-			return true
-		}
-		if event.Type == "item.completed" && event.Item != nil &&
-			event.Item.Type == "agent_message" && event.Item.Text != "" {
-			lastText = event.Item.Text
-		}
-		return true
-	})
-	return lastText
-}
-
-// Run 启动 Codex CLI 进程并将 stdout/stderr 写入 req.LogPath。
+// Run 启动 Codex CLI 进程并将 stdout/stderr 直接转换为引擎事件。
 func (inv *Invoker) Run(ctx context.Context, req engines.RunRequest) (engines.Process, <-chan engines.Event, error) {
-	if req.LogPath == "" {
-		return nil, nil, fmt.Errorf("log path is required")
-	}
 	threadID, resume := inv.resolveThread(req.SessionID, req.Resume)
 	args := buildArgs(threadID, resume, req)
-
-	logFile, err := os.OpenFile(req.LogPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open log file: %w", err)
-	}
-
-	pr, pw := io.Pipe()
-	writer := io.MultiWriter(logFile, pw)
 
 	execCtx := ctx
 	cancel := func() {}
@@ -89,44 +59,49 @@ func (inv *Invoker) Run(ctx context.Context, req engines.RunRequest) (engines.Pr
 
 	cmd := exec.CommandContext(execCtx, inv.binary, args...)
 	cmd.Dir = req.WorkDir
-	cmd.Stdout = writer
-	cmd.Stderr = logFile
 	cmd.Env = engines.BuildRunEnv(inv.baseEnv, req.ExtraEnv, req.Model)
 	if !resume {
 		cmd.Stdin = strings.NewReader(req.Prompt)
 	}
 
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		return nil, nil, fmt.Errorf("open codex stdout: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		cancel()
+		return nil, nil, fmt.Errorf("open codex stderr: %w", err)
+	}
+
 	if err := cmd.Start(); err != nil {
 		cancel()
-		_ = logFile.Close()
-		_ = pr.Close()
-		_ = pw.Close()
 		return nil, nil, fmt.Errorf("start codex: %w", err)
 	}
 
-	events := make(chan engines.Event, 2)
+	events := make(chan engines.Event, 16)
 	proc := engines.NewCmdProcess(cmd)
 	events <- engines.Event{Type: engines.EventStarted}
 
 	go func() {
 		defer close(events)
-		defer logFile.Close()
 		defer cancel()
 
-		waitCh := make(chan error, 1)
+		var wg sync.WaitGroup
+		wg.Add(2)
 		go func() {
-			waitCh <- cmd.Wait()
-			_ = pw.Close()
+			defer wg.Done()
+			inv.scanStdout(ctx, stdout, events, req.SessionID, !resume)
+		}()
+		go func() {
+			defer wg.Done()
+			scanPlainOutput(ctx, stderr, events, engines.EventMessageDelta)
 		}()
 
-		if !resume && req.SessionID != "" {
-			if newThreadID := extractSessionID(pr); newThreadID != "" {
-				inv.store.Set(req.SessionID, newThreadID)
-			}
-		}
-		_, _ = io.Copy(io.Discard, pr)
-
-		if err := <-waitCh; err != nil {
+		err := cmd.Wait()
+		wg.Wait()
+		if err != nil {
 			events <- engines.Event{Type: engines.EventError, Content: err.Error()}
 			return
 		}
@@ -134,6 +109,108 @@ func (inv *Invoker) Run(ctx context.Context, req engines.RunRequest) (engines.Pr
 	}()
 
 	return proc, events, nil
+}
+
+func (inv *Invoker) scanStdout(ctx context.Context, r interface{ Read([]byte) (int, error) }, events chan<- engines.Event, sessionID string, captureSession bool) {
+	engines.ScanJSONLines(r, func(line string) bool {
+		event, threadID := parseCodexLine(line)
+		if captureSession && sessionID != "" && threadID != "" {
+			inv.store.Set(sessionID, threadID)
+		}
+		if event.Type == "" {
+			return true
+		}
+		return sendEvent(ctx, events, event)
+	})
+}
+
+func parseCodexLine(line string) (engines.Event, string) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return engines.Event{}, ""
+	}
+	var event codexEvent
+	if json.Unmarshal([]byte(line), &event) != nil {
+		return engines.Event{Type: engines.EventMessageDelta, Content: line}, ""
+	}
+	if event.Type == "thread.started" && event.ThreadID != "" {
+		return engines.Event{}, event.ThreadID
+	}
+	if event.Item == nil {
+		return engines.Event{}, ""
+	}
+
+	item := event.Item
+	switch item.Type {
+	case "agent_message":
+		text := decodeCodexText(item.Text)
+		if text == "" {
+			return engines.Event{}, ""
+		}
+		eventType := engines.EventMessageDelta
+		if event.Type == "item.completed" {
+			eventType = engines.EventResult
+		}
+		return engines.Event{Type: eventType, Content: text}, ""
+	case "command_execution", "tool_call", "shell_command":
+		command := firstNonEmptyString(item.Command, item.CommandLine, item.Name)
+		if command != "" {
+			return engines.Event{Type: engines.EventMessageDelta, Content: "$ " + command}, ""
+		}
+	case "command_output", "tool_output", "shell_output":
+		output := firstNonEmptyString(item.Output, decodeCodexText(item.Text))
+		if output != "" {
+			return engines.Event{Type: engines.EventMessageDelta, Content: truncateOutput(output, 300)}, ""
+		}
+	}
+	return engines.Event{}, ""
+}
+
+func decodeCodexText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var text string
+	if json.Unmarshal(raw, &text) == nil {
+		return text
+	}
+	var parts []any
+	if json.Unmarshal(raw, &parts) == nil {
+		var b strings.Builder
+		for _, part := range parts {
+			if value, ok := part.(string); ok {
+				b.WriteString(value)
+			}
+		}
+		return b.String()
+	}
+	return ""
+}
+
+func scanPlainOutput(ctx context.Context, r interface{ Read([]byte) (int, error) }, events chan<- engines.Event, eventType engines.EventType) {
+	engines.ScanJSONLines(r, func(line string) bool {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return true
+		}
+		return sendEvent(ctx, events, engines.Event{Type: eventType, Content: line})
+	})
+}
+
+func sendEvent(ctx context.Context, events chan<- engines.Event, event engines.Event) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case events <- event:
+		return true
+	}
+}
+
+func truncateOutput(value string, maxLen int) string {
+	if len(value) <= maxLen {
+		return value
+	}
+	return value[:maxLen] + "..."
 }
 
 func buildArgs(threadID string, resume bool, req engines.RunRequest) []string {
@@ -186,22 +263,6 @@ func firstNonEmptyString(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func extractSessionID(r io.Reader) string {
-	var threadID string
-	engines.ScanJSONLines(r, func(line string) bool {
-		var event codexEvent
-		if json.Unmarshal([]byte(line), &event) != nil {
-			return true
-		}
-		if event.Type == "thread.started" && event.ThreadID != "" {
-			threadID = event.ThreadID
-			return false
-		}
-		return true
-	})
-	return threadID
 }
 
 func (inv *Invoker) resolveThread(sessionID string, resume bool) (string, bool) {

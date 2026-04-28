@@ -1,11 +1,9 @@
 package events
 
-import "context"
+import runtimeevents "github.com/insmtx/SingerOS/backend/runtime/events"
 
 // EventSink receives run events emitted during execution.
-type EventSink interface {
-	Emit(ctx context.Context, event *RunEvent) error
-}
+type EventSink = runtimeevents.Sink
 
 // Sink is kept as a short compatibility alias for EventSink.
 //

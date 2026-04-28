@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -26,8 +25,6 @@ func TestAdapterAskCurrentTime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get working directory: %v", err)
 	}
-	logPath := filepath.Join(t.TempDir(), "claude-time.jsonl")
-
 	adapter := NewAdapter(claudePath, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -35,7 +32,6 @@ func TestAdapterAskCurrentTime(t *testing.T) {
 	handle, err := adapter.Run(ctx, engines.RunRequest{
 		WorkDir: workDir,
 		Prompt:  "请查询当前系统时间，并用一句中文回答。不要修改任何文件。",
-		LogPath: logPath,
 		Model: engines.ModelConfig{
 			Provider: "anthropic",
 			APIKey:   apiKey,
@@ -49,8 +45,12 @@ func TestAdapterAskCurrentTime(t *testing.T) {
 	}
 
 	var finalEvent engines.Event
+	var result string
 	for event := range handle.Events {
 		t.Logf("received event: type=%s, content=%s", event.Type, event.Content)
+		if event.Type == engines.EventResult {
+			result = strings.TrimSpace(event.Content)
+		}
 		finalEvent = event
 	}
 	if finalEvent.Type == engines.EventError {
@@ -60,37 +60,31 @@ func TestAdapterAskCurrentTime(t *testing.T) {
 		t.Fatalf("unexpected final event: %#v", finalEvent)
 	}
 
-	result := strings.TrimSpace(handle.ExtractResult(logPath))
 	if result == "" {
-		t.Fatalf("expected non-empty claude result, log path: %s", logPath)
+		t.Fatal("expected non-empty claude result")
 	}
 	t.Logf("claude current time result: %s", result)
 }
 
-func TestExtractResultFromLogPrefersResultEvent(t *testing.T) {
-	dir := t.TempDir()
-	logPath := filepath.Join(dir, "claude.jsonl")
-	content := `{"type":"assistant","message":{"content":[{"type":"text","text":"draft"}]}}` + "\n" +
-		`{"type":"result","result":"final","is_error":false}` + "\n"
-	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
-		t.Fatalf("write log: %v", err)
+func TestParseClaudeLineEmitsResultEvent(t *testing.T) {
+	state := &claudeStreamState{}
+	event := parseClaudeLine(`{"type":"result","result":"final","is_error":false}`, state)
+	if event.Type != engines.EventResult || event.Content != "final" {
+		t.Fatalf("unexpected event: %#v", event)
 	}
-
-	if got := ExtractResultFromLog(logPath); got != "final" {
-		t.Fatalf("got %q, want final", got)
+	if state.result != "final" || state.isError {
+		t.Fatalf("unexpected state: %#v", state)
 	}
 }
 
-func TestExtractResultFromLogFallsBackToAssistantText(t *testing.T) {
-	dir := t.TempDir()
-	logPath := filepath.Join(dir, "claude.jsonl")
-	content := `{"type":"assistant","message":{"content":[{"type":"text","text":"answer"}]}}` + "\n"
-	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
-		t.Fatalf("write log: %v", err)
+func TestParseClaudeLineTracksAssistantFallback(t *testing.T) {
+	state := &claudeStreamState{}
+	event := parseClaudeLine(`{"type":"assistant","message":{"content":[{"type":"text","text":"answer"}]}}`, state)
+	if event.Type != engines.EventMessageDelta || event.Content != "answer" {
+		t.Fatalf("unexpected event: %#v", event)
 	}
-
-	if got := ExtractResultFromLog(logPath); got != "answer" {
-		t.Fatalf("got %q, want answer", got)
+	if state.lastAssistantText != "answer" {
+		t.Fatalf("got %q, want answer", state.lastAssistantText)
 	}
 }
 
