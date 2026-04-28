@@ -78,6 +78,8 @@ type RunHandle struct {
 type Engine interface {
 	// Prepare 准备引擎工作区
 	Prepare(ctx context.Context, req PrepareRequest) error
+	// RegisterMCP registers a Model Context Protocol server with the engine CLI.
+	RegisterMCP(ctx context.Context, cfg MCPServerConfig) error
 	// Run 运行引擎并返回进程句柄
 	Run(ctx context.Context, req RunRequest) (*RunHandle, error)
 }

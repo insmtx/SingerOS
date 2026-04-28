@@ -17,6 +17,7 @@ import (
 	"github.com/insmtx/SingerOS/backend/internal/infra/websocket"
 	"github.com/insmtx/SingerOS/backend/internal/service"
 	workerserver "github.com/insmtx/SingerOS/backend/internal/worker/server"
+	singerMCP "github.com/insmtx/SingerOS/backend/mcp"
 	ygmiddleware "github.com/ygpkg/yg-go/apis/runtime/middleware"
 	"github.com/ygpkg/yg-go/logs"
 	"gorm.io/gorm"
@@ -67,6 +68,9 @@ func SetupRouter(cfg config.Config, publisher eventbus.Publisher, db *gorm.DB) *
 	workerServer := workerserver.NewServer()
 	workerServer.RegisterRoutes(v1)
 	logs.Info("Worker server routes registered successfully")
+
+	singerMCP.RegisterRoutes(v1, singerMCP.NewServer())
+	logs.Info("MCP routes registered successfully")
 
 	// Swagger UI 路由
 	v1.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

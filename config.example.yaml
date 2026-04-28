@@ -26,5 +26,9 @@ llm:
   model: "gpt-4-turbo"                  # Preferred model for ReAct Agent
   base_url: "https://api.openai.com/v1" # Custom endpoint (optional)
 
+# External CLI engine preference. SingerOS auto-detects claude and codex from PATH.
+cli:
+  default: "claude"
+
 logging:
   level: "info"                        # Logging Level: debug, info, warn, error

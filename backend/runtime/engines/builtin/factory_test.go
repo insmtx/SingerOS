@@ -7,32 +7,31 @@ import (
 	"github.com/insmtx/SingerOS/backend/runtime/engines"
 )
 
-func TestNewRegistryFromConfigRegistersEnabledEngines(t *testing.T) {
-	registry, err := NewRegistryFromConfig(&config.CLIEnginesConfig{
-		Engines: map[string]config.CLIEngineConfig{
-			engines.EngineClaude: {Enabled: true, Path: "claude"},
-			engines.EngineCodex:  {Enabled: false, Path: "codex"},
-		},
-	})
+func TestNewRegistryFromConfigDetectsInstalledEngines(t *testing.T) {
+	registry, err := NewRegistryFromConfig(&config.CLIEnginesConfig{})
 	if err != nil {
 		t.Fatalf("build registry: %v", err)
 	}
-
-	if _, ok := registry.Get(engines.EngineClaude); !ok {
-		t.Fatal("expected claude engine to be registered")
-	}
-	if _, ok := registry.Get(engines.EngineCodex); ok {
-		t.Fatal("disabled codex engine should not be registered")
+	if registry == nil {
+		t.Fatal("expected registry")
 	}
 }
 
-func TestNewRegistryFromConfigRejectsUnsupportedEngine(t *testing.T) {
-	_, err := NewRegistryFromConfig(&config.CLIEnginesConfig{
-		Engines: map[string]config.CLIEngineConfig{
-			"unknown": {Enabled: true},
-		},
-	})
+func TestNewEngineRejectsUnsupportedEngine(t *testing.T) {
+	_, err := newEngine("unknown", "")
 	if err == nil {
 		t.Fatal("expected unsupported engine error")
+	}
+}
+
+func TestNewEngineCreatesBuiltinEngines(t *testing.T) {
+	for _, name := range []string{engines.EngineClaude, engines.EngineCodex} {
+		engine, err := newEngine(name, name)
+		if err != nil {
+			t.Fatalf("build %s engine: %v", name, err)
+		}
+		if engine == nil {
+			t.Fatalf("expected %s engine", name)
+		}
 	}
 }

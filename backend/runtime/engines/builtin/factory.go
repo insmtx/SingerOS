@@ -3,7 +3,6 @@ package builtin
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/insmtx/SingerOS/backend/config"
 	"github.com/insmtx/SingerOS/backend/runtime/engines"
@@ -11,33 +10,30 @@ import (
 	"github.com/insmtx/SingerOS/backend/runtime/engines/codex"
 )
 
-// NewRegistryFromConfig 创建包含所有已启用内置 CLI 引擎的注册表。
+// NewRegistryFromConfig creates a registry with every detected built-in CLI engine.
 func NewRegistryFromConfig(cfg *config.CLIEnginesConfig) (*engines.Registry, error) {
 	registry := engines.NewRegistry()
-	if cfg == nil {
-		return registry, nil
-	}
-	for name, item := range cfg.Engines {
-		if !item.Enabled {
+	for _, status := range engines.DiscoverAvailableCLI() {
+		if !status.Installed {
 			continue
 		}
-		engine, err := newEngine(strings.ToLower(strings.TrimSpace(name)), item)
+		engine, err := newEngine(status.Name, status.Path)
 		if err != nil {
 			return nil, err
 		}
-		if err := registry.Register(name, engine); err != nil {
+		if err := registry.Register(status.Name, engine); err != nil {
 			return nil, err
 		}
 	}
 	return registry, nil
 }
 
-func newEngine(name string, cfg config.CLIEngineConfig) (engines.Engine, error) {
+func newEngine(name string, path string) (engines.Engine, error) {
 	switch name {
 	case engines.EngineClaude:
-		return claude.NewAdapter(cfg.Path, cfg.ExtraEnv), nil
+		return claude.NewAdapter(path, nil), nil
 	case engines.EngineCodex:
-		return codex.NewAdapter(cfg.Path, cfg.ExtraEnv), nil
+		return codex.NewAdapter(path, nil), nil
 	default:
 		return nil, fmt.Errorf("unsupported CLI engine %q", name)
 	}

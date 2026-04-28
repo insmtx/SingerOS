@@ -25,6 +25,21 @@ func (a *Adapter) Prepare(_ context.Context, _ engines.PrepareRequest) error {
 	return nil
 }
 
+// RegisterMCP registers a streamable HTTP MCP server with Codex CLI.
+func (a *Adapter) RegisterMCP(ctx context.Context, cfg engines.MCPServerConfig) error {
+	cfg = engines.NormalizeMCPServerConfig(cfg)
+	_ = engines.RunCLICommand(ctx, a.invoker.binary, []string{"mcp", "remove", cfg.Name}, nil)
+
+	args := []string{"mcp", "add", cfg.Name, "--url", cfg.URL}
+	env := []string(nil)
+	if cfg.BearerToken != "" {
+		tokenEnvVar := engines.SingerOSMCPTokenEnvVar()
+		args = append(args, "--bearer-token-env-var", tokenEnvVar)
+		env = append(env, tokenEnvVar+"="+cfg.BearerToken)
+	}
+	return engines.RunCLICommand(ctx, a.invoker.binary, args, env)
+}
+
 // Run 启动 Codex CLI 并返回进程句柄。
 func (a *Adapter) Run(ctx context.Context, req engines.RunRequest) (*engines.RunHandle, error) {
 	proc, events, err := a.invoker.Run(ctx, req)

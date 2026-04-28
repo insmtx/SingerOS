@@ -11,6 +11,10 @@ func (stubEngine) Prepare(context.Context, PrepareRequest) error {
 	return nil
 }
 
+func (stubEngine) RegisterMCP(context.Context, MCPServerConfig) error {
+	return nil
+}
+
 func (stubEngine) Run(context.Context, RunRequest) (*RunHandle, error) {
 	return &RunHandle{}, nil
 }
