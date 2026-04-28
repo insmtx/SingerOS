@@ -156,6 +156,12 @@ type Attachment struct {
 
 // RuntimeOptions controls runtime execution behavior.
 type RuntimeOptions struct {
+	// Kind 是本次运行选择的 runtime，例如 singeros、codex、claude。
+	Kind string `json:"kind,omitempty"`
+
+	// WorkDir ： runtime 执行时使用的工作目录
+	WorkDir string `json:"work_dir,omitempty"`
+
 	// MaxStep 是 agent 单次运行允许的最大推理/工具循环步数。
 	MaxStep int `json:"max_step,omitempty"`
 }
