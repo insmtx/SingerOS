@@ -16,6 +16,17 @@ import (
 	"github.com/insmtx/Leros/backend/types"
 )
 
+// legacyColumnsToDrop 记录了从模型中被移除但数据库中残留的列。
+// GORM AutoMigrate 不会删除列，需要手动清理。
+type legacyColumn struct {
+	table  string
+	column string
+}
+
+var legacyColumns = []legacyColumn{
+	{table: types.TableNameDigitalAssistant, column: "config"},
+}
+
 // dbName 是数据库名称常量
 const dbName = "leros"
 
@@ -73,7 +84,26 @@ func runMigrations(db *gorm.DB) error {
 		return err
 	}
 
+	if err := dropLegacyColumns(db); err != nil {
+		return err
+	}
+
 	logs.Info("Database migrations completed")
+	return nil
+}
+
+// dropLegacyColumns 清理从模型中被移除的数据库列
+func dropLegacyColumns(db *gorm.DB) error {
+	for _, lc := range legacyColumns {
+		if ok := db.Migrator().HasColumn(lc.table, lc.column); ok {
+			logs.Infof("[migration] dropping legacy column %s.%s", lc.table, lc.column)
+			if err := db.Migrator().DropColumn(lc.table, lc.column); err != nil {
+				logs.Errorf("[migration] failed to drop column %s.%s: %v", lc.table, lc.column, err)
+				return err
+			}
+			logs.Infof("[migration] dropped legacy column %s.%s", lc.table, lc.column)
+		}
+	}
 	return nil
 }
 
