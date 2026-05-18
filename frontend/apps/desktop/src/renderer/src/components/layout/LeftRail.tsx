@@ -1,6 +1,6 @@
 "use client";
 
-import type { NavItem } from "@leros/store";
+import type { NavItem, ViewMode } from "@leros/store";
 import { useLayoutStore } from "@leros/store";
 import { Button } from "@leros/ui/components/ui/button";
 import { ScrollArea } from "@leros/ui/components/ui/scroll-area";
@@ -42,16 +42,35 @@ const iconMap: Record<string, React.ReactNode> = {
 	IconMessage: <MessageSquare className="size-4" />,
 };
 
+const navIdToView: Record<string, ViewMode> = {
+	"ai-assistant": "chat",
+	workbench: "workbench",
+	"ai-employee": "digitalAssistant",
+	knowledge: "knowledge",
+	skills: "skills",
+	settings: "settings",
+};
+
 export function LeftRail() {
 	const {
 		leftRailCollapsed,
 		navGroups,
 		collapsedNavGroups,
-		conversationListOpen,
+		currentView,
 		toggleLeftRail,
 		toggleNavGroup,
-		toggleConversationList,
+		switchView,
 	} = useLayoutStore((s) => s);
+
+	const handleNavClick = (item: NavItem) => {
+		const view = navIdToView[item.id] ?? "chat";
+		switchView(view);
+	};
+
+	const isItemActive = (item: NavItem) => {
+		const view = navIdToView[item.id] ?? "chat";
+		return currentView === view;
+	};
 
 	return (
 		<div
@@ -89,7 +108,12 @@ export function LeftRail() {
 							return (
 								<div key={group.id} className="mb-1">
 									{group.items.map((item: NavItem) => (
-										<CollapsedNavItemButton key={item.id} item={item} />
+										<CollapsedNavItemButton
+											key={item.id}
+											item={item}
+											active={isItemActive(item)}
+											onClick={() => handleNavClick(item)}
+										/>
 									))}
 								</div>
 							);
@@ -114,26 +138,14 @@ export function LeftRail() {
 
 								{!isCollapsed && (
 									<div className={cn("mt-0.5", group.label && "ml-2")}>
-										{group.items.map((item: NavItem) =>
-											item.id === "ai-assistant" ? (
-												<button
-													key={item.id}
-													type="button"
-													onClick={() => toggleConversationList()}
-													className={cn(
-														"group flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm cursor-pointer transition-colors w-full text-left",
-														conversationListOpen
-															? "bg-blue-50 text-blue-700"
-															: "text-slate-600 hover:bg-slate-50 hover:text-slate-800",
-													)}
-												>
-													{iconMap[item.icon]}
-													<span className="truncate">{item.label}</span>
-												</button>
-											) : (
-												<NavItemButton key={item.id} item={item} active={false} />
-											),
-										)}
+										{group.items.map((item: NavItem) => (
+											<NavItemButton
+												key={item.id}
+												item={item}
+												active={isItemActive(item)}
+												onClick={() => handleNavClick(item)}
+											/>
+										))}
 									</div>
 								)}
 							</div>
@@ -154,11 +166,20 @@ export function LeftRail() {
 	);
 }
 
-function NavItemButton({ item, active }: { item: NavItem; active: boolean }) {
+function NavItemButton({
+	item,
+	active,
+	onClick,
+}: {
+	item: NavItem;
+	active: boolean;
+	onClick: () => void;
+}) {
 	const icon = iconMap[item.icon];
 	return (
 		<button
 			type="button"
+			onClick={onClick}
 			className={cn(
 				"group flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm cursor-pointer transition-colors w-full text-left",
 				active
@@ -177,12 +198,26 @@ function NavItemButton({ item, active }: { item: NavItem; active: boolean }) {
 	);
 }
 
-function CollapsedNavItemButton({ item }: { item: NavItem }) {
+function CollapsedNavItemButton({
+	item,
+	active,
+	onClick,
+}: {
+	item: NavItem;
+	active: boolean;
+	onClick: () => void;
+}) {
 	const icon = iconMap[item.icon];
 	return (
 		<button
 			type="button"
-			className="flex items-center justify-center rounded-md p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors w-full cursor-pointer"
+			onClick={onClick}
+			className={cn(
+				"flex items-center justify-center rounded-md p-2 transition-colors w-full cursor-pointer",
+				active
+					? "bg-blue-50 text-blue-700"
+					: "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+			)}
 			title={item.label}
 		>
 			{icon}

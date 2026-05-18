@@ -35,10 +35,13 @@ export type NavItem = {
 	badge?: number;
 };
 
+export type ViewMode = "chat" | "workbench" | "digitalAssistant" | "knowledge" | "skills" | "settings";
+
 export type LayoutState = {
 	leftRailCollapsed: boolean;
 	rightRailCollapsed: boolean;
 	conversationListOpen: boolean;
+	currentView: ViewMode;
 	activeConversationId: string | null;
 	activeWorkspaceId: string | null;
 	workspaces: Workspace[];
@@ -70,6 +73,7 @@ const _initialState: LayoutState = {
 	leftRailCollapsed: false,
 	rightRailCollapsed: false,
 	conversationListOpen: true,
+	currentView: "chat",
 	activeConversationId: null,
 	activeWorkspaceId: null,
 	workspaces: [
@@ -138,6 +142,13 @@ export class LayoutActionImpl {
 		}));
 	};
 
+	switchView = (view: ViewMode) => {
+		this.#set({
+			currentView: view,
+			conversationListOpen: view === "chat",
+		});
+	};
+
 	toggleRightRail = () => {
 		this.#set((state) => ({ rightRailCollapsed: !state.rightRailCollapsed }));
 	};
@@ -182,7 +193,7 @@ export class LayoutActionImpl {
 				activeConversationId: conv.id,
 				conversationsLoaded: true,
 			}));
-			return conv.id;
+			return conv;
 		} catch (err) {
 			console.error("createConversation error:", err);
 			return null;

@@ -30,29 +30,28 @@ function DialogContent({
 		<DialogPrimitive.Portal>
 			<DialogPrimitive.Backdrop
 				style={{
-					position: 'fixed',
+					position: "fixed",
 					inset: 0,
 					zIndex: 50,
-					backgroundColor: 'rgba(0, 0, 0, 0.4)',
+					backgroundColor: "rgba(0, 0, 0, 0.4)",
 				}}
 				className="data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 transition-all duration-200"
 			/>
-			<div
+			<DialogPrimitive.Viewport
 				style={{
-					position: 'fixed',
+					position: "fixed",
 					inset: 0,
 					zIndex: 50,
-					display: 'flex',
-					alignItems: 'center',
-					justifyContent: 'center',
-					padding: '1rem',
-					pointerEvents: 'none',
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "center",
+					padding: "1rem",
 				}}
 			>
 				<DialogPrimitive.Popup
 					data-slot="dialog-content"
 					className={cn(
-						"relative w-full max-w-sm rounded-xl border bg-background p-6 shadow-lg pointer-events-auto",
+						"relative w-full max-w-sm rounded-xl border bg-background p-6 shadow-lg",
 						"data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[ending-style]:scale-95 transition-all duration-200",
 						className,
 					)}
@@ -72,9 +71,9 @@ function DialogContent({
 								</Button>
 							}
 						/>
-						)}
-					</DialogPrimitive.Popup>
-				</div>
+					)}
+				</DialogPrimitive.Popup>
+			</DialogPrimitive.Viewport>
 		</DialogPrimitive.Portal>
 	);
 }
@@ -89,10 +88,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			data-slot="dialog-footer"
-			className={cn(
-				"flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
-				className,
-			)}
+			className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
 			{...props}
 		/>
 	);
@@ -118,6 +114,10 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
 	);
 }
 
+function DialogViewport({ ...props }: DialogPrimitive.Viewport.Props) {
+	return <DialogPrimitive.Viewport data-slot="dialog-viewport" {...props} />;
+}
+
 function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
 	return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
@@ -132,4 +132,5 @@ export {
 	DialogPortal,
 	DialogTitle,
 	DialogTrigger,
+	DialogViewport,
 };

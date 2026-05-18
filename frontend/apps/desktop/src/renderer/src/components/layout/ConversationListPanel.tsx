@@ -19,7 +19,7 @@ import {
 import { ScrollArea } from "@leros/ui/components/ui/scroll-area";
 import { cn } from "@leros/ui/lib/utils";
 import { MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export function ConversationListPanel() {
 	const {
@@ -59,12 +59,11 @@ export function ConversationListPanel() {
 	};
 
 	const handleCreateConversation = async () => {
-		const newId = await createConversation("新会话");
-		if (newId) {
-			const conv = conversations.find((c) => c.id === newId);
-			if (conv) {
-				handleConversationClick(conv.id, conv.sessionDbId);
-			}
+		const conv = await createConversation("新会话");
+		if (conv) {
+			switchConversation(conv.id);
+			setActiveSession(conv.sessionDbId, conv.id);
+			loadConversationMessages(conv.sessionDbId);
 		}
 	};
 
@@ -145,9 +144,7 @@ export function ConversationListPanel() {
 										}
 									/>
 									<DropdownMenuContent align="end" sideOffset={4}>
-										<DropdownMenuItem
-											onClick={() => handleOpenRename(conv)}
-										>
+										<DropdownMenuItem onClick={() => handleOpenRename(conv)}>
 											<Pencil className="size-3.5 mr-2" />
 											<span>重命名</span>
 										</DropdownMenuItem>
