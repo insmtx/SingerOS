@@ -95,3 +95,24 @@ func GetNextSequence(ctx context.Context, db *gorm.DB, sessionID string) (int64,
 func UpdateMessageSequence(ctx context.Context, db *gorm.DB, messageID uint, sequence int64) error {
 	return db.WithContext(ctx).Model(&types.SessionMessage{}).Where("id = ?", messageID).Update("sequence", sequence).Error
 }
+
+// GetRecentSessionMessages 获取会话最近的 N 条消息（按时间顺序）
+func GetRecentSessionMessages(ctx context.Context, db *gorm.DB, sessionID string, limit int) ([]*types.SessionMessage, error) {
+	var entities []*types.SessionMessage
+	err := db.WithContext(ctx).
+		Where("session_id = ?", sessionID).
+		Order("sequence DESC").
+		Limit(limit).
+		Find(&entities).Error
+	if err != nil {
+		return nil, err
+	}
+	reverse(entities)
+	return entities, nil
+}
+
+func reverse(messages []*types.SessionMessage) {
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
+	}
+}
