@@ -71,13 +71,13 @@ func (p *natsPublisher) initStreams() error {
 		}
 		// 检查是否与预配置的 stream 冲突（同 subjects 但不同名）
 		isConfigured := false
-		for streamName, subjects := range dm.StreamSubjects {
-			if name == streamName {
+		for _, cfg := range dm.StreamSubjects {
+			if name == cfg.Name {
 				isConfigured = true
 				break
 			}
 			// 判断 subjects 是否重叠
-			if hasOverlap(info.Config.Subjects, subjects) {
+			if hasOverlap(info.Config.Subjects, cfg.Subjects) {
 				logs.Warnf("Deleting conflicting stream '%s' (subjects: %v)", name, info.Config.Subjects)
 				if err := p.js.DeleteStream(name); err != nil {
 					logs.Warnf("Failed to delete conflicting stream '%s': %v", name, err)
@@ -87,8 +87,8 @@ func (p *natsPublisher) initStreams() error {
 		// 如果 stream 已存在但不是我们配置的，检查其 subjects
 		if !isConfigured {
 			for _, subj := range info.Config.Subjects {
-				for _, cfgSubjects := range dm.StreamSubjects {
-					if hasOverlap([]string{subj}, cfgSubjects) {
+				for _, cfg := range dm.StreamSubjects {
+					if hasOverlap([]string{subj}, cfg.Subjects) {
 						logs.Warnf("Deleting conflicting stream '%s' with subject %q", name, subj)
 						_ = p.js.DeleteStream(name)
 						break
@@ -98,26 +98,18 @@ func (p *natsPublisher) initStreams() error {
 		}
 	}
 
-	for streamName, subjects := range dm.StreamSubjects {
-		_, addErr := p.js.AddStream(&nats.StreamConfig{
-			Name:     streamName,
-			Subjects: subjects,
-			Storage:  nats.FileStorage,
-		})
+	for _, cfg := range dm.StreamSubjects {
+		_, addErr := p.js.AddStream(&cfg)
 		if addErr == nil {
-			logs.Infof("Created JetStream stream '%s' with subjects: %v", streamName, subjects)
+			logs.Infof("Created JetStream stream '%s' with subjects: %v", cfg.Name, cfg.Subjects)
 			continue
 		}
 
 		// AddStream 失败，尝试 UpdateStream
-		if _, err := p.js.UpdateStream(&nats.StreamConfig{
-			Name:     streamName,
-			Subjects: subjects,
-			Storage:  nats.FileStorage,
-		}); err != nil {
-			return fmt.Errorf("failed to initialize stream '%s': AddStream=%v, UpdateStream=%w", streamName, addErr, err)
+		if _, err := p.js.UpdateStream(&cfg); err != nil {
+			return fmt.Errorf("failed to initialize stream '%s': AddStream=%v, UpdateStream=%w", cfg.Name, addErr, err)
 		}
-		logs.Infof("Updated JetStream stream '%s' with subjects: %v", streamName, subjects)
+		logs.Infof("Updated JetStream stream '%s' with subjects: %v", cfg.Name, cfg.Subjects)
 	}
 	return nil
 }
@@ -290,5 +282,3 @@ func (p *natsPublisher) Close() error {
 
 	return nil
 }
-
-
