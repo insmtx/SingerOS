@@ -249,19 +249,15 @@ func (p *natsBus) Subscribe(ctx context.Context, topic string, consumer string, 
 // subscribeWithDurable 使用持久化消费者订阅，handler 正常返回后自动 Ack，panic 时自动 Nak（不传播 panic）。
 func (p *natsBus) subscribeWithDurable(ctx context.Context, topic string, consumer string, handler func(msg *nats.Msg)) error {
 	sub, err := p.js.Subscribe(topic, func(msg *nats.Msg) {
-		acked := false
 		defer func() {
 			if r := recover(); r != nil {
 				logs.ErrorContextf(ctx, "Panic in handler for topic '%s', consumer '%s': %v", topic, consumer, r)
 				_ = msg.Nak()
-				return
-			}
-			if !acked {
+			} else {
 				_ = msg.Ack()
 			}
 		}()
 		handler(msg)
-		acked = true
 	}, nats.Durable(consumer), nats.ManualAck(), nats.Context(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to topic '%s' with consumer '%s': %w", topic, consumer, err)
