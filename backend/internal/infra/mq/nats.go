@@ -238,8 +238,43 @@ func (p *natsPublisher) Publish(ctx context.Context, topic string, event any) er
 }
 
 // Subscribe implements the eventbus.Subscriber interface.
-func (p *natsPublisher) Subscribe(ctx context.Context, topic string, handler func(msg *nats.Msg)) error {
-	return p.SubscribeWithContext(ctx, topic, handler)
+// consumer 为空时使用临时消费者（OrderedConsumer, AckNone），非空时创建持久化消费者并自动 ACK/NAK。
+func (p *natsPublisher) Subscribe(ctx context.Context, topic string, consumer string, handler func(msg *nats.Msg)) error {
+	if consumer == "" {
+		return p.SubscribeWithContext(ctx, topic, handler)
+	}
+	return p.subscribeWithDurable(ctx, topic, consumer, handler)
+}
+
+// subscribeWithDurable 使用持久化消费者订阅，handler 正常返回后自动 Ack，panic 时自动 Nak（不传播 panic）。
+func (p *natsPublisher) subscribeWithDurable(ctx context.Context, topic string, consumer string, handler func(msg *nats.Msg)) error {
+	sub, err := p.js.Subscribe(topic, func(msg *nats.Msg) {
+		acked := false
+		defer func() {
+			if r := recover(); r != nil {
+				logs.ErrorContextf(ctx, "Panic in handler for topic '%s', consumer '%s': %v", topic, consumer, r)
+				_ = msg.Nak()
+				return
+			}
+			if !acked {
+				_ = msg.Ack()
+			}
+		}()
+		handler(msg)
+		acked = true
+	}, nats.Durable(consumer), nats.ManualAck(), nats.Context(ctx))
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to topic '%s' with consumer '%s': %w", topic, consumer, err)
+	}
+
+	<-ctx.Done()
+
+	if err := sub.Unsubscribe(); err != nil {
+		logs.WarnContextf(ctx, "Failed to unsubscribe from topic '%s': %v", topic, err)
+	}
+	logs.InfoContextf(ctx, "Unsubscribed from topic: %s (consumer: %s)", topic, consumer)
+
+	return ctx.Err()
 }
 
 // SubscribeFrom implements the eventbus.Subscriber interface.
