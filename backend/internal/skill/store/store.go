@@ -1,4 +1,4 @@
-// Package store 将用户管理的 Skill 持久化到 Leros home 目录下。
+// Package store persists user-managed skills under the Leros workspace.
 package store
 
 import (
@@ -77,7 +77,7 @@ type RemoveFileRequest struct {
 	FilePath string
 }
 
-// DefaultSkillRoot 返回 $LEROS_HOME/skills，未设置时返回 ~/.leros/skills。
+// DefaultSkillRoot 返回默认 workspace skills 目录。
 func DefaultSkillRoot() (string, error) {
 	return leros.SkillsDir()
 }

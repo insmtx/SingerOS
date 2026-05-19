@@ -138,16 +138,16 @@ func TestCatalogMergeKeepsFirstDuplicateSkill(t *testing.T) {
 	}
 }
 
-func TestDefaultLerosSkillsDirUsesLerosHome(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(leros.EnvHome, home)
+func TestDefaultLerosSkillsDirUsesWorkspaceRoot(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	t.Setenv(leros.EnvWorkspaceRoot, workspaceRoot)
 
 	dir, err := defaultLerosSkillsDir()
 	if err != nil {
-		t.Fatalf("default Leros skills dir: %v", err)
+		t.Fatalf("default workspace skills dir: %v", err)
 	}
 
-	expected := filepath.Join(home, "skills")
+	expected := filepath.ToSlash(filepath.Join(workspaceRoot, "skills"))
 	if dir != expected {
 		t.Fatalf("expected %s, got %s", expected, dir)
 	}

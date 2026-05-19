@@ -74,9 +74,9 @@ func TestStoreBuildPromptBlock(t *testing.T) {
 	}
 }
 
-func TestDefaultMemoryRootUsesLerosHome(t *testing.T) {
+func TestDefaultMemoryRootUsesWorkspaceRoot(t *testing.T) {
 	tempDir := t.TempDir()
-	t.Setenv(leros.EnvHome, tempDir)
+	t.Setenv(leros.EnvWorkspaceRoot, tempDir)
 
 	root, err := DefaultMemoryRoot()
 	if err != nil {

@@ -146,16 +146,16 @@ func TestSkillStoreRejectsInvalidFrontmatter(t *testing.T) {
 	}
 }
 
-func TestDefaultSkillRootUsesLerosHome(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv(leros.EnvHome, home)
+func TestDefaultSkillRootUsesWorkspaceRoot(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	t.Setenv(leros.EnvWorkspaceRoot, workspaceRoot)
 
 	root, err := DefaultSkillRoot()
 	if err != nil {
 		t.Fatalf("default root: %v", err)
 	}
 
-	expected := filepath.Join(home, "skills")
+	expected := filepath.Join(workspaceRoot, "skills")
 	if root != expected {
 		t.Fatalf("expected %s, got %s", expected, root)
 	}
@@ -167,7 +167,7 @@ func newTestStore(t *testing.T) (*SkillStore, string) {
 	home := t.TempDir()
 	root := filepath.Join(home, "project-skills")
 	t.Setenv("HOME", home)
-	t.Setenv(leros.EnvHome, filepath.Join(home, ".leros"))
+	t.Setenv(leros.EnvWorkspaceRoot, filepath.Join(home, "workspace"))
 
 	store, err := NewSkillStore(root)
 	if err != nil {

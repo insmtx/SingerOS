@@ -3,18 +3,12 @@ package skillmanage
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"testing"
 
 	skillstore "github.com/insmtx/Leros/backend/internal/skill/store"
-	"github.com/insmtx/Leros/backend/pkg/leros"
 )
 
 func TestToolExecuteCreate(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv(leros.EnvHome, filepath.Join(home, ".leros"))
-
 	store, err := skillstore.NewSkillStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("new store: %v", err)

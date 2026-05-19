@@ -100,7 +100,7 @@ func MustDefaultStore() *Store {
 	return store
 }
 
-// DefaultMemoryRoot returns $LEROS_HOME/memory, or ~/.leros/memory when unset.
+// DefaultMemoryRoot returns the workspace memory directory.
 func DefaultMemoryRoot() (string, error) {
 	return leros.MemoryDir()
 }

@@ -82,19 +82,19 @@ func (s *BootstrapService) Bootstrap(ctx context.Context, cfg *config.CLIEngines
 	}
 
 	// === Layer 3: Skill Sync ===
-	// Step 1: 同步内置 skills 到 ~/.leros/skills
-	logs.Info("Syncing built-in skills to Leros user directory...")
+	// Step 1: 同步内置 skills 到 workspace skills 目录。
+	logs.Info("Syncing built-in skills to Leros workspace skills directory...")
 	if err := s.skillSync.SyncBuiltinToLeros(opts.SkillsSourceDir); err != nil {
 		bootstrapErr = appendError(bootstrapErr, err)
 		logs.Warnf("Sync built-in skills failed: %v", err)
 	} else {
-		logs.Info("Built-in skills synced to ~/.leros/skills")
+		logs.Info("Built-in skills synced to Leros workspace skills directory")
 	}
 
-	// Step 2: 从 ~/.leros/skills 同步到各 CLI 目录
+	// Step 2: 从 workspace skills 同步到各 CLI 目录。
 	skillDirs := s.cliDiscovery.GetSkillDirs()
 	if len(skillDirs) > 0 {
-		logs.Infof("Syncing skills from ~/.leros/skills to %d external CLI directories", len(skillDirs))
+		logs.Infof("Syncing skills from Leros workspace skills to %d external CLI directories", len(skillDirs))
 		if err := s.skillSync.SyncToExternal(skillDirs); err != nil {
 			bootstrapErr = appendError(bootstrapErr, err)
 			logs.Warnf("Sync skills to external CLI failed: %v", err)
@@ -205,12 +205,12 @@ func NewSkillSyncService() *SkillSyncService {
 	return &SkillSyncService{}
 }
 
-// SyncBuiltinToLeros 将内置 skills 同步到 ~/.leros/skills。
+// SyncBuiltinToLeros 将内置 skills 同步到 workspace skills 目录。
 func (s *SkillSyncService) SyncBuiltinToLeros(sourceDir string) error {
 	return engines.SyncToLerosDir(sourceDir)
 }
 
-// SyncToExternal 将 ~/.leros/skills 同步到外部 CLI 目录。
+// SyncToExternal 将 workspace skills 同步到外部 CLI 目录。
 func (s *SkillSyncService) SyncToExternal(dirs []string) error {
 	return engines.SyncFromLerosToExternal(dirs)
 }

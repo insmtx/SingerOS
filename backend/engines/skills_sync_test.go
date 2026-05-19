@@ -10,8 +10,8 @@ import (
 
 func TestSyncToLerosDirCreatesUserSkillsDirectory(t *testing.T) {
 	builtinRoot := t.TempDir()
-	lerosOSHome := t.TempDir()
-	t.Setenv(leros.EnvHome, lerosOSHome)
+	workspaceRoot := t.TempDir()
+	t.Setenv(leros.EnvWorkspaceRoot, workspaceRoot)
 
 	writeSyncTestSkill(t, filepath.Join(builtinRoot, "review-flow"), "review-flow", "test body")
 
@@ -19,8 +19,8 @@ func TestSyncToLerosDirCreatesUserSkillsDirectory(t *testing.T) {
 		t.Fatalf("sync to leros dir: %v", err)
 	}
 
-	// Verify the skill was synced to ~/.leros/skills
-	userSkillsDir := filepath.Join(lerosOSHome, "skills", "review-flow")
+	// Verify the skill was synced to the workspace skills directory.
+	userSkillsDir := filepath.Join(workspaceRoot, "skills", "review-flow")
 	targetBody, err := os.ReadFile(filepath.Join(userSkillsDir, skillManifestFile))
 	if err != nil {
 		t.Fatalf("read synced skill: %v", err)
@@ -31,7 +31,7 @@ func TestSyncToLerosDirCreatesUserSkillsDirectory(t *testing.T) {
 }
 
 func TestSyncFromLerosToExternalNoopsWhenNoSourcesExist(t *testing.T) {
-	t.Setenv(leros.EnvHome, filepath.Join(t.TempDir(), "missing"))
+	t.Setenv(leros.EnvWorkspaceRoot, filepath.Join(t.TempDir(), "missing"))
 
 	// Should not error when source doesn't exist
 	if err := SyncFromLerosToExternal([]string{t.TempDir()}); err != nil {
@@ -40,11 +40,11 @@ func TestSyncFromLerosToExternalNoopsWhenNoSourcesExist(t *testing.T) {
 }
 
 func TestSyncFromLerosToExternalSkipsEmptyDirs(t *testing.T) {
-	lerosOSHome := t.TempDir()
-	t.Setenv(leros.EnvHome, lerosOSHome)
+	workspaceRoot := t.TempDir()
+	t.Setenv(leros.EnvWorkspaceRoot, workspaceRoot)
 
-	// Create user skills directory (empty)
-	userSkillsDir := filepath.Join(lerosOSHome, "skills")
+	// Create workspace skills directory (empty).
+	userSkillsDir := filepath.Join(workspaceRoot, "skills")
 	if err := os.MkdirAll(userSkillsDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

@@ -62,8 +62,8 @@ func (p *PostProcessor) run(action string) {
 		}
 	}
 
-	// After skill mutation, sync from ~/.leros/skills to external CLI directories
-	// This ensures external CLI tools can see the newly created/modified skills
+	// After skill mutation, sync from workspace skills to external CLI directories.
+	// This ensures external CLI tools can see the newly created/modified skills.
 	// Default target directories: ~/.claude/skills, ~/.agents/skills
 	if err := engines.SyncFromLerosToExternal(nil); err != nil {
 		logs.Warnf("Sync Leros skills to external CLI after %s failed: %v", action, err)

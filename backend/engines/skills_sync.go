@@ -19,8 +19,8 @@ const skillManifestFile = "SKILL.md"
 
 var errNoSkillDirs = errors.New("no skill directories found")
 
-// SyncToLerosDir copies built-in skills from sourceDir to Leros user skills directory (~/.leros/skills).
-// This is the first step in the new sync flow: internal skills -> ~/.leros/skills.
+// SyncToLerosDir copies built-in skills from sourceDir to the Leros workspace skills directory.
+// This is the first step in the sync flow: internal skills -> workspace skills.
 func SyncToLerosDir(sourceDir string) error {
 	sourceDir, err := resolveBuiltinSkillsSource(sourceDir)
 	if err != nil {
@@ -32,23 +32,23 @@ func SyncToLerosDir(sourceDir string) error {
 		return err
 	}
 
-	// Resolve the user directory path (expand ~)
+	// Resolve the workspace skills directory path (expand ~).
 	resolvedUserDir, err := expandPath(userDir)
 	if err != nil {
 		return err
 	}
 
-	// Create the user skills directory if it doesn't exist
+	// Create the workspace skills directory if it doesn't exist.
 	if err := os.MkdirAll(resolvedUserDir, 0o755); err != nil {
-		return fmt.Errorf("create user skills directory: %w", err)
+		return fmt.Errorf("create workspace skills directory: %w", err)
 	}
 
 	logs.Infof("Syncing built-in skills from %s to %s", sourceDir, resolvedUserDir)
 	return syncSkillDir(sourceDir, resolvedUserDir)
 }
 
-// SyncFromLerosToExternal copies skills from Leros user directory (~/.leros/skills) to external CLI skill directories.
-// This is the second step in the new sync flow: ~/.leros/skills -> external CLI skill dirs.
+// SyncFromLerosToExternal copies skills from workspace skills to external CLI skill directories.
+// This is the second step in the sync flow: workspace skills -> external CLI skill dirs.
 func SyncFromLerosToExternal(cliSkillDirs []string) error {
 	userDir, err := defaultLerosSkillsDir()
 	if err != nil {
@@ -60,9 +60,9 @@ func SyncFromLerosToExternal(cliSkillDirs []string) error {
 		return err
 	}
 
-	// Check if user skills directory exists
+	// Check if workspace skills directory exists.
 	if _, err := os.Stat(resolvedUserDir); os.IsNotExist(err) {
-		logs.Debugf("Leros user skills directory does not exist, skipping sync to external CLI: %s", resolvedUserDir)
+		logs.Debugf("Leros workspace skills directory does not exist, skipping sync to external CLI: %s", resolvedUserDir)
 		return nil
 	}
 
